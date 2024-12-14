@@ -32,10 +32,6 @@ void Solid::ModelEvaluator::Multiscale::setup()
   vtu_writer_ptr_ = std::make_shared<Core::IO::DiscretizationVisualizationWriterMesh>(
       discret_ptr(), macro_visualization_params_);
 
-  // auto visualization_manager_ptr_ = vtu_writer_ptr_->visualization_manager_ptr();
-  // auto& visualization_data = visualization_manager_ptr_->get_visualization_data();
-  // visualization_data.register_field_data<double>("tangent_stiffness_tensor_cmat", 36);
-
   // set flag
   issetup_ = true;
 }
