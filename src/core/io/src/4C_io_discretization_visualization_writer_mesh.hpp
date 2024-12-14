@@ -84,6 +84,9 @@ namespace Core::IO
         const Core::LinAlg::MultiVector<double>& result_data, const OutputEntity output_entity,
         const std::vector<std::optional<std::string>>& context);
 
+    void append_field_data_vector(
+        const std::vector<double>& result_data, const std::string& data_name) const;
+
    private:
     /**
      * @brief Append result vector with num_dof values per node to output data
@@ -167,9 +170,6 @@ namespace Core::IO
     //! Write the material id for each element to the output
     void append_element_material_id();
 
-    //! Return the pointer to the VisualizationManager
-    std::shared_ptr<VisualizationManager>& visualization_manager_ptr();
-
     /**
      * \brief Write the 4C internal node GIDs for each node
      *
@@ -197,11 +197,11 @@ namespace Core::IO
     //! discretization containing elements of which geometry and result data shall be visualized
     std::shared_ptr<const Core::FE::Discretization> discretization_;
 
-    //! A filter function that returns true for all elements that should be visualized.
-    std::function<bool(const Core::Elements::Element* element)> element_filter_;
-
     //! The actual visualization writer object that additionally stores the geometry and result data
     std::shared_ptr<VisualizationManager> visualization_manager_;
+
+    //! A filter function that returns true for all elements that should be visualized.
+    std::function<bool(const Core::Elements::Element* element)> element_filter_;
 
     //! Node row and col maps the geometry of visualization writer is based on
     std::shared_ptr<Epetra_Map> noderowmap_last_geometry_set_;

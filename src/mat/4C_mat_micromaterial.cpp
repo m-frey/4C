@@ -32,11 +32,11 @@ Mat::PAR::MicroMaterial::MicroMaterial(const Core::Mat::PAR::Parameter::Data& ma
   std::string option = matdata.parameters.get<std::string>("RUNTIMEOUTPUT_GP");
 
   if (option == "all")
-    RuntimeOutputOption = runtime_output_option::all;
+    runtime_output_option_ = RuntimeOutputOption::all;
   else if (option == "none")
-    RuntimeOutputOption = runtime_output_option::none;
+    runtime_output_option_ = RuntimeOutputOption::none;
   else if (option == "gp1")
-    RuntimeOutputOption = runtime_output_option::gp1;
+    runtime_output_option_ = RuntimeOutputOption::gp1;
   else
     FOUR_C_THROW("Unrecognized MicroMaterial property. Invalid RUNTIMEOUTPUT_GP option specified");
 }

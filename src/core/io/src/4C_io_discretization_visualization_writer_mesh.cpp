@@ -35,9 +35,9 @@ namespace Core::IO
       std::function<bool(const Core::Elements::Element* element)> element_filter,
       const std::optional<std::string>& filename)
       : discretization_(discretization),
-        element_filter_(std::move(element_filter)),
         visualization_manager_(std::make_shared<VisualizationManager>(std::move(parameters),
-            discretization->get_comm(), filename.value_or(discretization->name())))
+            discretization->get_comm(), filename.value_or(discretization->name()))),
+        element_filter_(std::move(element_filter))
   {
     set_geometry_from_discretization();
   }
@@ -188,6 +188,11 @@ namespace Core::IO
     }
   }
 
+  void DiscretizationVisualizationWriterMesh::append_field_data_vector(
+      const std::vector<double>& result_data, const std::string& data_name) const
+  {
+    visualization_manager_->get_visualization_data().set_field_data_vector(data_name, result_data);
+  }
   /*-----------------------------------------------------------------------------------------------*
    *-----------------------------------------------------------------------------------------------*/
   void DiscretizationVisualizationWriterMesh::append_dof_based_result_data_vector(
@@ -436,11 +441,6 @@ namespace Core::IO
     // Pass data to the output writer.
     visualization_manager_->get_visualization_data().set_cell_data_vector(
         "material_id", material_id_of_row_elements, 1);
-  }
-  std::shared_ptr<VisualizationManager>&
-  DiscretizationVisualizationWriterMesh::visualization_manager_ptr()
-  {
-    return visualization_manager_;
   }
 
   /*-----------------------------------------------------------------------------------------------*

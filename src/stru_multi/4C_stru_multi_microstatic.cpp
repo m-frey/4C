@@ -274,9 +274,6 @@ MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
       discret_, visualization_params_, [](const Core::Elements::Element*) { return true; },
       "micro_model_" + std::to_string(microdisnum_));
 
-  auto const visualization_manager_ptr_ = micro_vtu_writer_ptr_->visualization_manager_ptr();
-  auto& visualization_data = visualization_manager_ptr_->get_visualization_data();
-  visualization_data.register_field_data<double>("tangent_stiffness_tensor_cmat", 36);
 }  // MultiScale::MicroStatic::MicroStatic
 
 
@@ -288,7 +285,6 @@ void MultiScale::MicroStatic::predictor(Core::LinAlg::Matrix<3, 3>* defgrd)
     predict_tang_dis(defgrd);
   else
     FOUR_C_THROW("requested predictor not implemented on the micro-scale");
-  return;
 }
 
 
@@ -735,12 +731,8 @@ void MultiScale::MicroStatic::output(
 void MultiScale::MicroStatic::runtime_output(
     const std::pair<double, int>& output_time_and_step, const std::string& section_name) const
 {
-  const auto visualization_manager_ptr_ = micro_vtu_writer_ptr_->visualization_manager_ptr();
-  auto& visualization_data = visualization_manager_ptr_->get_visualization_data();
-
-  std::vector<double>& out_cmat =
-      visualization_data.get_field_data<double>("tangent_stiffness_tensor_cmat");
-  out_cmat.clear();
+  std::vector<double> out_cmat;
+  out_cmat.reserve(36);
 
   for (int i = 0; i < 6; i++)
   {
@@ -751,9 +743,11 @@ void MultiScale::MicroStatic::runtime_output(
     }
   }
   micro_vtu_writer_ptr_->reset();
-  micro_vtu_writer_ptr_->append_element_material_id();
 
   //----------------------------------------------------- output results
+  micro_vtu_writer_ptr_->append_element_material_id();
+  micro_vtu_writer_ptr_->append_field_data_vector(out_cmat, "tangent_stiffness_tensor_cmat");
+
   if (iodisp_ && resevrydisp_ && output_time_and_step.second % resevrydisp_ == 0)
   {
     std::vector<std::optional<std::string>> context(3, section_name + "_displacement");
