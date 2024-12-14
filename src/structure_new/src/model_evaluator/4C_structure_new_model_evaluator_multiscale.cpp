@@ -25,11 +25,6 @@ void Solid::ModelEvaluator::Multiscale::setup()
 {
   check_init();
 
-  // ------------------------ Runtime output writer
-  // auto visualization_params_ = Core::IO::visualization_parameters_factory(
-  //   Global::Problem::instance(0)->io_params().sublist("RUNTIME VTK OUTPUT"),
-  //   *Global::Problem::instance()->output_control_file(), time_);
-
   macro_visualization_params_ = Core::IO::visualization_parameters_factory(
       Global::Problem::instance()->io_params().sublist("RUNTIME VTK OUTPUT"),
       *Global::Problem::instance()->output_control_file(), global_state().get_time_n());
@@ -37,9 +32,9 @@ void Solid::ModelEvaluator::Multiscale::setup()
   vtu_writer_ptr_ = std::make_shared<Core::IO::DiscretizationVisualizationWriterMesh>(
       discret_ptr(), macro_visualization_params_);
 
-  auto visualization_manager_ptr_ = vtu_writer_ptr_->visualization_manager_ptr();
-  auto& visualization_data = visualization_manager_ptr_->get_visualization_data();
-  visualization_data.register_field_data<double>("tangent_stiffness_tensor_cmat", 36);
+  // auto visualization_manager_ptr_ = vtu_writer_ptr_->visualization_manager_ptr();
+  // auto& visualization_data = visualization_manager_ptr_->get_visualization_data();
+  // visualization_data.register_field_data<double>("tangent_stiffness_tensor_cmat", 36);
 
   // set flag
   issetup_ = true;
@@ -125,8 +120,7 @@ void Solid::ModelEvaluator::Multiscale::runtime_pre_output_step_state()
     if (mat->material_type() == Core::Materials::m_struct_multiscale)
     {
       if (auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
-          Mat::PAR::MicroMaterial::runtime_output_option::none !=
-          micro_mat->runtime_output_option())
+          Mat::PAR::MicroMaterial::RuntimeOutputOption::none != micro_mat->runtime_output_option())
         micro_mat->prepare_runtime_output();
     }
   }
@@ -155,8 +149,7 @@ void Solid::ModelEvaluator::Multiscale::runtime_output_step_state() const
     if (mat->material_type() == Core::Materials::m_struct_multiscale)
     {
       if (auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
-          Mat::PAR::MicroMaterial::runtime_output_option::none !=
-          micro_mat->runtime_output_option())
+          Mat::PAR::MicroMaterial::RuntimeOutputOption::none != micro_mat->runtime_output_option())
       {
         micro_mat->runtime_output_step_state(output_macro_time_and_step);
       }

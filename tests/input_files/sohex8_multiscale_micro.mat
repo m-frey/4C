@@ -15,11 +15,11 @@ NUMSTRUCDIS                     2
 NUMALEDIS                       0
 NUMTHERMDIS                     0
 --------------------------------------------------------------------------IO
-OUTPUT_BIN                      No
-STRUCT_DISP                     No
+OUTPUT_BIN                      yes
+STRUCT_DISP                     yes
 VERBOSITY                       Minimal
 -----------------------------------------------------------IO/RUNTIME VTK OUTPUT
-OUTPUT_DATA_FORMAT              binary
+OUTPUT_DATA_FORMAT              ascii
 INTERVAL_STEPS                  1
 EVERY_ITERATION                 No
 ----------------------------------------------------------IO/RUNTIME VTK OUTPUT/STRUCTURE

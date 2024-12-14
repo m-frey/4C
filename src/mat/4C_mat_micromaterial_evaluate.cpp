@@ -261,7 +261,7 @@ void Mat::MicroMaterial::prepare_runtime_output() const
     std::shared_ptr<MicroMaterialGP> actmicromatgp = micromatgp.second;
     actmicromatgp->prepare_output();
 
-    if (params_->RuntimeOutputOption == PAR::MicroMaterial::runtime_output_option::gp1) break;
+    if (params_->runtime_output_option_ == PAR::MicroMaterial::RuntimeOutputOption::gp1) break;
   }
 }
 
@@ -287,7 +287,7 @@ void Mat::MicroMaterial::runtime_output_step_state(
     std::shared_ptr<MicroMaterialGP> actmicromatgp = micromatgp.second;
     actmicromatgp->runtime_output_step_state_microscale(output_time_and_step, section_name);
 
-    if (params_->RuntimeOutputOption == PAR::MicroMaterial::runtime_output_option::gp1) break;
+    if (params_->runtime_output_option_ == PAR::MicroMaterial::RuntimeOutputOption::gp1) break;
   }
 }
 

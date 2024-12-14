@@ -35,7 +35,7 @@ namespace Mat
       MicroMaterial(const Core::Mat::PAR::Parameter::Data& matdata);
 
       //! action parameters recognized by ale3
-      enum class runtime_output_option
+      enum class RuntimeOutputOption
       {
         none,  ///< no output of micromodel
         all,   ///< output micromodel of every gausspoint
@@ -52,7 +52,7 @@ namespace Mat
       const double initvol_;
 
       //// runtime output option
-      runtime_output_option RuntimeOutputOption;
+      RuntimeOutputOption runtime_output_option_;
       //! @}
 
       /// create material instance of matching type with my parameters
@@ -198,9 +198,10 @@ namespace Mat
     std::string micro_input_file_name() const { return params_->microfile_; }
     int micro_dis_num() const { return params_->microdisnum_; }
     double init_vol() const { return params_->initvol_; }
-    PAR::MicroMaterial::runtime_output_option runtime_output_option() const
+
+    [[nodiscard]] PAR::MicroMaterial::RuntimeOutputOption runtime_output_option() const
     {
-      return params_->RuntimeOutputOption;
+      return params_->runtime_output_option_;
     }
 
     //@}
