@@ -133,6 +133,9 @@ namespace MultiScale
     void output(Core::IO::DiscretizationWriter& output, const double time, const int istep,
         const double dt);
 
+    /*!
+    \brief Write runtime output (displacement, tangent-stiffness, material IDs)
+    */
     void runtime_output(
         const std::pair<double, int>& output_time_and_step, const std::string& section_name) const;
     /*!

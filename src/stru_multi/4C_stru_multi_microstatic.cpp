@@ -727,8 +727,6 @@ void MultiScale::MicroStatic::output(
 
 /*----------------------------------------------------------------------*
  |  write runtime output (public)
- |  Writes displacement, tangent stiffness tensor, and material IDs
- |  of the micro discretization to the VTU writer at runtime
  *----------------------------------------------------------------------*/
 void MultiScale::MicroStatic::runtime_output(
     const std::pair<double, int>& output_time_and_step, const std::string& section_name) const
