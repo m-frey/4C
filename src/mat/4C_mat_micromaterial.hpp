@@ -199,11 +199,6 @@ namespace Mat
     int micro_dis_num() const { return params_->microdisnum_; }
     double init_vol() const { return params_->initvol_; }
 
-    [[nodiscard]] PAR::MicroMaterial::RuntimeOutputOption runtime_output_option() const
-    {
-      return params_->runtime_output_option_;
-    }
-
     //@}
 
     /// Return quick accessible material parameter data

@@ -29,9 +29,6 @@ void Solid::ModelEvaluator::Multiscale::setup()
       Global::Problem::instance()->io_params().sublist("RUNTIME VTK OUTPUT"),
       *Global::Problem::instance()->output_control_file(), global_state().get_time_n());
 
-  vtu_writer_ptr_ = std::make_shared<Core::IO::DiscretizationVisualizationWriterMesh>(
-      discret_ptr(), macro_visualization_params_);
-
   // set flag
   issetup_ = true;
 }

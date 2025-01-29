@@ -731,17 +731,8 @@ void MultiScale::MicroStatic::output(
 void MultiScale::MicroStatic::runtime_output(
     const std::pair<double, int>& output_time_and_step, const std::string& section_name) const
 {
-  std::vector<double> out_cmat;
-  out_cmat.reserve(36);
+  std::vector<double> out_cmat(macro_cmat_.values(), macro_cmat_.values() + 36);
 
-  for (int i = 0; i < 6; i++)
-  {
-    for (int j = 0; j < 6; j++)
-    {
-      const auto a = macro_cmat_(i, j);
-      out_cmat.push_back(a);
-    }
-  }
   micro_vtu_writer_->reset();
 
   //----------------------------------------------------- output results

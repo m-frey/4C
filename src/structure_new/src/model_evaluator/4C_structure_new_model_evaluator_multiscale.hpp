@@ -126,8 +126,6 @@ namespace Solid
       void post_output() override {};
 
      private:
-      std::shared_ptr<Core::IO::DiscretizationVisualizationWriterMesh> vtu_writer_ptr_;
-
       //! visualization parameters
       Core::IO::VisualizationParameters macro_visualization_params_;
     };
