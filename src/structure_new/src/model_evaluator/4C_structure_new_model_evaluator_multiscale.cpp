@@ -115,9 +115,8 @@ void Solid::ModelEvaluator::Multiscale::runtime_pre_output_step_state()
     std::shared_ptr<Core::Mat::Material> mat = actele->material();
     if (mat->material_type() == Core::Materials::m_struct_multiscale)
     {
-      if (auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
-          Mat::PAR::MicroMaterial::RuntimeOutputOption::none != micro_mat->runtime_output_option())
-        micro_mat->prepare_runtime_output();
+      auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
+      micro_mat->prepare_runtime_output();
     }
   }
 }
@@ -144,11 +143,8 @@ void Solid::ModelEvaluator::Multiscale::runtime_output_step_state() const
     std::shared_ptr<Core::Mat::Material> mat = actele->material();
     if (mat->material_type() == Core::Materials::m_struct_multiscale)
     {
-      if (auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
-          Mat::PAR::MicroMaterial::RuntimeOutputOption::none != micro_mat->runtime_output_option())
-      {
-        micro_mat->runtime_output_step_state(output_macro_time_and_step);
-      }
+      auto* micro_mat = static_cast<Mat::MicroMaterial*>(mat.get());
+      micro_mat->runtime_output_step_state(output_macro_time_and_step);
     }
   }
 }

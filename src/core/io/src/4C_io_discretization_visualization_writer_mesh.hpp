@@ -88,7 +88,7 @@ namespace Core::IO
      * @brief Appends a field data vector for output with the given name.
      *
      * The field data vector represents a single quantity in vector form, valid for the entire
-     * field, e.g., an averaged stress tensor.
+     * field, e.g., an averaged stress.
      *
      * @param result_data (in)  field data vector
      * @param data_name (in)    name assigned to the output quantity

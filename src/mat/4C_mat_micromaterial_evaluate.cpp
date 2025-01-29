@@ -245,6 +245,10 @@ void Mat::MicroMaterial::prepare_output()
 // prepare output for all procs
 void Mat::MicroMaterial::prepare_runtime_output() const
 {
+  if (params_->runtime_output_option_ == PAR::MicroMaterial::RuntimeOutputOption::none)
+  {
+    return;
+  }
   // get sub communicator including the supporting procs
   MPI_Comm subcomm = Global::Problem::instance(0)->get_communicators()->sub_comm();
   if (Core::Communication::my_mpi_rank(subcomm) == 0)
@@ -268,6 +272,10 @@ void Mat::MicroMaterial::prepare_runtime_output() const
 void Mat::MicroMaterial::runtime_output_step_state(
     std::pair<double, int> output_time_and_step) const
 {
+  if (params_->runtime_output_option_ == PAR::MicroMaterial::RuntimeOutputOption::none)
+  {
+    return;
+  }
   // get sub communicator including the supporting procs
   MPI_Comm subcomm = Global::Problem::instance(0)->get_communicators()->sub_comm();
   if (Core::Communication::my_mpi_rank(subcomm) == 0)

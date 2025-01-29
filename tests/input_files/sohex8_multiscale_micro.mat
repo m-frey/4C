@@ -29,8 +29,8 @@ DISPLACEMENT                    Yes
 INT_STRATEGY                    Standard
 LINEAR_SOLVER                   1
 DYNAMICTYPE                     GenAlpha
-RESULTSEVRY                     1
-RESTARTEVRY                     1
+RESULTSEVERY                     1
+RESTARTEVERY                     1
 NLNSOL                          fullnewton                    // fullnewton modnewton matfreenewton nlncg ptc
 TIMESTEP                        0.5
 NUMSTEP                         3

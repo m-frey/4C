@@ -35,7 +35,7 @@ namespace Mat
       MicroMaterial(const Core::Mat::PAR::Parameter::Data& matdata);
 
       //! action parameters recognized by ale3
-      enum class RuntimeOutputOption
+      enum RuntimeOutputOption
       {
         none,  ///< no output of micromodel
         all,   ///< output micromodel of every gausspoint

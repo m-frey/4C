@@ -270,7 +270,7 @@ MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
       Global::Problem::instance(microdisnum_)->io_params().sublist("RUNTIME VTK OUTPUT"),
       *Global::Problem::instance()->output_control_file(), time_);
 
-  micro_vtu_writer_ptr_ = std::make_shared<Core::IO::DiscretizationVisualizationWriterMesh>(
+  micro_vtu_writer_ = std::make_shared<Core::IO::DiscretizationVisualizationWriterMesh>(
       discret_, visualization_params_, [](const Core::Elements::Element*) { return true; },
       "micro_model_" + std::to_string(microdisnum_));
 
@@ -742,19 +742,19 @@ void MultiScale::MicroStatic::runtime_output(
       out_cmat.push_back(a);
     }
   }
-  micro_vtu_writer_ptr_->reset();
+  micro_vtu_writer_->reset();
 
   //----------------------------------------------------- output results
-  micro_vtu_writer_ptr_->append_element_material_id();
-  micro_vtu_writer_ptr_->append_field_data_vector(out_cmat, "tangent_stiffness_tensor_cmat");
+  micro_vtu_writer_->append_element_material_id();
+  micro_vtu_writer_->append_field_data_vector(out_cmat, "tangent_stiffness_tensor_cmat");
 
   if (iodisp_ && resevrydisp_ && output_time_and_step.second % resevrydisp_ == 0)
   {
     std::vector<std::optional<std::string>> context(3, section_name + "_displacement");
-    micro_vtu_writer_ptr_->append_result_data_vector_with_context(
+    micro_vtu_writer_->append_result_data_vector_with_context(
         *dis_, Core::IO::OutputEntity::dof, context);
 
-    micro_vtu_writer_ptr_->write_to_disk(output_time_and_step.first, output_time_and_step.second);
+    micro_vtu_writer_->write_to_disk(output_time_and_step.first, output_time_and_step.second);
   }
 }
 /*----------------------------------------------------------------------*

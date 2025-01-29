@@ -29,13 +29,13 @@ Mat::PAR::MicroMaterial::MicroMaterial(const Core::Mat::PAR::Parameter::Data& ma
       microdisnum_(matdata.parameters.get<int>("MICRODIS_NUM")),
       initvol_(matdata.parameters.get<double>("INITVOL"))
 {
-  std::string option = matdata.parameters.get<std::string>("RUNTIMEOUTPUT_GP");
+  int option = matdata.parameters.get<int>("RUNTIMEOUTPUT_GP");
 
-  if (option == "all")
+  if (option == RuntimeOutputOption::all)
     runtime_output_option_ = RuntimeOutputOption::all;
-  else if (option == "none")
+  else if (option == RuntimeOutputOption::none)
     runtime_output_option_ = RuntimeOutputOption::none;
-  else if (option == "gp1")
+  else if (option == RuntimeOutputOption::gp1)
     runtime_output_option_ = RuntimeOutputOption::gp1;
   else
     FOUR_C_THROW("Unrecognized MicroMaterial property. Invalid RUNTIMEOUTPUT_GP option specified");

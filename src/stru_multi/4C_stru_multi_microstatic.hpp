@@ -134,8 +134,13 @@ namespace MultiScale
         const double dt);
 
     /*!
-    \brief Write runtime output (displacement, tangent-stiffness, material IDs)
-    */
+     * @brief Write runtime output (displacement, tangent-stiffness, material IDs)
+     *
+     * Controlled via the RUNTIMEOUTPUT_GP flag, this function allows runtime output for
+     * different levels of detail: `"none"` (no output), `"all"` (all Gauss points), and `"gp1"`
+     * (only the first Gauss point).
+     *
+     */
     void runtime_output(
         const std::pair<double, int>& output_time_and_step, const std::string& section_name) const;
     /*!
@@ -250,7 +255,7 @@ namespace MultiScale
     double density() const { return density_; };
 
    private:
-    std::shared_ptr<Core::IO::DiscretizationVisualizationWriterMesh> micro_vtu_writer_ptr_;
+    std::shared_ptr<Core::IO::DiscretizationVisualizationWriterMesh> micro_vtu_writer_;
     Core::IO::VisualizationParameters visualization_params_;
 
    protected:
@@ -294,7 +299,7 @@ namespace MultiScale
     double toldisi_;
 
 
-    Core::LinAlg::Matrix<6, 6> macro_cmat_;
+    Core::LinAlg::Matrix<6, 6> macro_cmat_;  //!< Averaged tangent stiffness tensor
 
     enum Inpar::Solid::BinaryOp combdisifres_;  //!< binary operator to
                                                 // combine displacement and forces
