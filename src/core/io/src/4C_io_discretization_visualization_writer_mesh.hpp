@@ -84,6 +84,15 @@ namespace Core::IO
         const Core::LinAlg::MultiVector<double>& result_data, const OutputEntity output_entity,
         const std::vector<std::optional<std::string>>& context);
 
+    /*!
+     * @brief Appends a field data vector for output with the given name.
+     *
+     * The field data vector represents a single quantity in vector form, valid for the entire
+     * field, e.g., an averaged stress tensor.
+     *
+     * @param result_data (in)  field data vector
+     * @param data_name (in)    name assigned to the output quantity
+     */
     void append_field_data_vector(
         const std::vector<double>& result_data, const std::string& data_name) const;
 

@@ -395,7 +395,8 @@ void Mat::MicroMaterialGP::runtime_output_step_state_microscale(
     const std::pair<double, int>& output_time_and_step, const std::string& section_name)
 {
   // select corresponding "time integration class" for this microstructure
-  const std::shared_ptr<MultiScale::MicroStatic> microstatic = microstaticmap_[microdisnum_];
+  const std::shared_ptr<MultiScale::MicroStatic> microstatic =
+      global_micro_state().microstaticmap_[microdisnum_];
 
   // set displacements and EAS data of last step
   microstatic->set_state(dis_, disn_, stress_, strain_, plstrain_, lastalpha_, oldalpha_, oldfeas_,

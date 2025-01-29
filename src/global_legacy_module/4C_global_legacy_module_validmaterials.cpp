@@ -1584,6 +1584,10 @@ std::shared_ptr<std::vector<std::shared_ptr<Mat::MaterialDefinition>>> Global::v
         entry<int>("MICRODIS_NUM", {.description = "Number of microscale discretization"}));
     m->add_component(
         entry<double>("INITVOL", {.description = "Initial volume of RVE", .default_value = 0.0}));
+    m->add_component(entry<std::string>("RUNTIMEOUTPUT_GP",
+        {.description = "Specify the Gauss Points"
+                        " of this element for which runtime output is generated",
+            .default_value = "none"}));
 
     Mat::append_material_definition(matlist, m);
   }
