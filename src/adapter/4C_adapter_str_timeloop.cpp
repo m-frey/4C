@@ -64,15 +64,19 @@ int Adapter::StructureTimeLoop::integrate()
         auto problem = Global::Problem::instance();
         auto discret_ = problem->get_dis("structure");
         const Epetra_Map* dofrowmap = discret_->dof_row_map();
-        auto stiff_ = Teuchos::rcp(new Core::LinAlg::SparseMatrix(*dofrowmap, 81, true, true));
-
+        auto stiff_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, 81, true, true);
         auto dt_ = 0.;
         auto timen_ = 1.;
 
         auto dispn_ = dispn();
-        Teuchos::RCP<Epetra_Vector> disn_ = Teuchos::rcp(new Epetra_Vector(*dispn_));
-        Teuchos::RCP<Epetra_Vector> disi_ = Teuchos::rcp(new Epetra_Vector(*dispn_));
-        Teuchos::RCP<Epetra_Vector> fintn_ = Teuchos::rcp(new Epetra_Vector(*freact()));
+        std::shared_ptr<Core::LinAlg::Vector<double>> disn_ =
+            std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
+        std::shared_ptr<Core::LinAlg::Vector<double>> disi_ =
+            std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
+        std::shared_ptr<Core::LinAlg::Vector<double>> fint_ =
+            std::make_shared<Core::LinAlg::Vector<double>>(*freact());
+        std::shared_ptr<Core::LinAlg::Vector<double>> fintn_ =
+            std::make_shared<Core::LinAlg::Vector<double>>(*freact());
         fintn_->PutScalar(0.0);
         disn_->PutScalar(0.0);
 
@@ -95,12 +99,12 @@ int Adapter::StructureTimeLoop::integrate()
         discret_->set_state("residual displacement", disi_);
         discret_->set_state("displacement", disn_);
 
-        std::cout << "\ndisi_ (residual displacement:) " << *disi_ << std::endl;
-        std::cout << "\ndisn_ (displacement:) " << *disn_ << std::endl;
+        // std::cout << "\ndisi_ (residual displacement:) " << disi_-> << std::endl;
+        // std::cout << "\ndisn_ (displacement:) " << *disn_ << std::endl;
 
 
         fintn_->PutScalar(0.0);  // initialise internal force vector
-        discret_->evaluate(p, stiff_, Teuchos::null, fintn_, Teuchos::null, Teuchos::null);
+        discret_->evaluate(p, stiff_, nullptr, fintn_, nullptr, nullptr);
 
         // std::cout << "\nFINT (AFTER evaluate NEWTIMINT) = " << *fintn_ << std::endl;
         // std::cout << "\nstiff_ (AFTER evaluate NEWTIMINT)" << std::endl;
@@ -109,10 +113,10 @@ int Adapter::StructureTimeLoop::integrate()
         discret_->clear_state();
       }
       auto dispn_ = dispn();
-      std::cout << "====== dispn is: (NEW TIMEINT) =====\n" << *dispn_;
+      // std::cout << "====== dispn is: (NEW TIMEINT) =====\n" << *dispn_;
 
       auto fr = freact();
-      std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
+      // std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
 
       // static homogen. as OUTPUT:
       auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
@@ -150,7 +154,7 @@ int Adapter::StructureTimeLoop::integrate()
       /*  =========================================================================================
        *              STATIC HOMOGENIZAITON END
        *  =========================================================================================
-       *
+       */
 
 
       // write output
