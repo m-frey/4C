@@ -34,8 +34,9 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  |  ctor (public)|
  *----------------------------------------------------------------------*/
-MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
-    : microdisnum_(microdisnum), V0_(V0)
+MultiScale::MicroStatic::MicroStatic(
+    const int microdisnum, const double V0, const bool singleHomogenizationOnly)
+    : microdisnum_(microdisnum), singleHomogenizationOnly_(singleHomogenizationOnly), V0_(V0)
 {
   // -------------------------------------------------------------------
   // access the discretization
@@ -57,76 +58,78 @@ MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
   const Teuchos::ParameterList& sdyn_macro =
       Global::Problem::instance()->structural_dynamic_params();
 
-  // i/o options should be read from the corresponding micro-file
-  const Teuchos::ParameterList& ioflags = Global::Problem::instance(microdisnum_)->io_params();
+  if (!singleHomogenizationOnly)
+  {
+    // i/o options should be read from the corresponding micro-file
+    const Teuchos::ParameterList& ioflags = Global::Problem::instance(microdisnum_)->io_params();
 
-  // -------------------------------------------------------------------
-  // create a solver
-  // -------------------------------------------------------------------
-  // get the solver number used for structural solver
-  const int linsolvernumber = sdyn_micro.get<int>("LINEAR_SOLVER");
-  // check if the structural solver has a valid solver number
-  if (linsolvernumber == (-1))
-    FOUR_C_THROW(
-        "no linear solver defined for structural field. Please set LINEAR_SOLVER in STRUCTURAL "
-        "DYNAMIC to a valid number!");
+    // -------------------------------------------------------------------
+    // create a solver
+    // -------------------------------------------------------------------
+    // get the solver number used for structural solver
+    const int linsolvernumber = sdyn_micro.get<int>("LINEAR_SOLVER");
+    // check if the structural solver has a valid solver number
+    if (linsolvernumber == (-1))
+      FOUR_C_THROW(
+          "no linear solver defined for structural field. Please set LINEAR_SOLVER in STRUCTURAL "
+          "DYNAMIC to a valid number!");
 
-  solver_ = std::make_shared<Core::LinAlg::Solver>(
-      Global::Problem::instance(microdisnum_)->solver_params(linsolvernumber), discret_->get_comm(),
-      Global::Problem::instance()->solver_params_callback(),
-      Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
-  discret_->compute_null_space_if_necessary(solver_->params());
+    solver_ = std::make_shared<Core::LinAlg::Solver>(
+        Global::Problem::instance(microdisnum_)->solver_params(linsolvernumber),
+        discret_->get_comm(), Global::Problem::instance()->solver_params_callback(),
+        Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
+            Global::Problem::instance()->io_params(), "VERBOSITY"));
+    discret_->compute_null_space_if_necessary(solver_->params());
 
-  auto pred = Teuchos::getIntegralValue<Inpar::Solid::PredEnum>(sdyn_micro, "PREDICT");
-  pred_ = pred;
-  combdisifres_ =
-      Teuchos::getIntegralValue<Inpar::Solid::BinaryOp>(sdyn_micro, "NORMCOMBI_RESFDISP");
-  normtypedisi_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_DISP");
-  normtypefres_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_RESF");
-  auto iternorm = Teuchos::getIntegralValue<Inpar::Solid::VectorNorm>(sdyn_micro, "ITERNORM");
-  iternorm_ = iternorm;
+    auto pred = Teuchos::getIntegralValue<Inpar::Solid::PredEnum>(sdyn_micro, "PREDICT");
+    pred_ = pred;
+    combdisifres_ =
+        Teuchos::getIntegralValue<Inpar::Solid::BinaryOp>(sdyn_micro, "NORMCOMBI_RESFDISP");
+    normtypedisi_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_DISP");
+    normtypefres_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_RESF");
+    auto iternorm = Teuchos::getIntegralValue<Inpar::Solid::VectorNorm>(sdyn_micro, "ITERNORM");
+    iternorm_ = iternorm;
 
-  dt_ = sdyn_macro.get<double>("TIMESTEP");
-  // broadcast important data that must be consistent on macro and micro scale (master and
-  // supporting procs)
-  Core::Communication::broadcast(&dt_, 1, 0, discret_->get_comm());
-  time_ = 0.0;
-  timen_ = time_ + dt_;
-  step_ = 0;
-  stepn_ = step_ + 1;
-  numstep_ = sdyn_macro.get<int>("NUMSTEP");
-  maxiter_ = sdyn_micro.get<int>("MAXITER");
-  numiter_ = -1;
+    dt_ = sdyn_macro.get<double>("TIMESTEP");
+    // broadcast important data that must be consistent on macro and micro scale (master and
+    // supporting procs)
+    Core::Communication::broadcast(&dt_, 1, 0, discret_->get_comm());
+    time_ = 0.0;
+    timen_ = time_ + dt_;
+    step_ = 0;
+    stepn_ = step_ + 1;
+    numstep_ = sdyn_macro.get<int>("NUMSTEP");
+    maxiter_ = sdyn_micro.get<int>("MAXITER");
+    numiter_ = -1;
 
-  tolfres_ = sdyn_micro.get<double>("TOLRES");
-  toldisi_ = sdyn_micro.get<double>("TOLDISP");
-  printscreen_ = (ioflags.get<int>("STDOUTEVERY"));
+    tolfres_ = sdyn_micro.get<double>("TOLRES");
+    toldisi_ = sdyn_micro.get<double>("TOLDISP");
+    printscreen_ = (ioflags.get<int>("STDOUTEVERY"));
 
 
-  restart_ = Global::Problem::instance()->restart();
-  restartevry_ = sdyn_macro.get<int>("RESTARTEVERY");
-  iodisp_ = ioflags.get<bool>("STRUCT_DISP");
-  resevrydisp_ = sdyn_micro.get<int>("RESULTSEVERY");
-  auto iostress = Teuchos::getIntegralValue<Inpar::Solid::StressType>(ioflags, "STRUCT_STRESS");
-  iostress_ = iostress;
-  resevrystrs_ = sdyn_micro.get<int>("RESULTSEVERY");
-  auto iostrain = Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_STRAIN");
-  iostrain_ = iostrain;
-  auto ioplstrain =
-      Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_PLASTIC_STRAIN");
-  ioplstrain_ = ioplstrain;
-  iosurfactant_ = ioflags.get<bool>("STRUCT_SURFACTANT");
+    restart_ = Global::Problem::instance()->restart();
+    restartevry_ = sdyn_macro.get<int>("RESTARTEVERY");
+    iodisp_ = ioflags.get<bool>("STRUCT_DISP");
+    resevrydisp_ = sdyn_micro.get<int>("RESULTSEVERY");
+    auto iostress = Teuchos::getIntegralValue<Inpar::Solid::StressType>(ioflags, "STRUCT_STRESS");
+    iostress_ = iostress;
+    resevrystrs_ = sdyn_micro.get<int>("RESULTSEVERY");
+    auto iostrain = Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_STRAIN");
+    iostrain_ = iostrain;
+    auto ioplstrain =
+        Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_PLASTIC_STRAIN");
+    ioplstrain_ = ioplstrain;
+    iosurfactant_ = ioflags.get<bool>("STRUCT_SURFACTANT");
 
-  isadapttol_ = (sdyn_micro.get<bool>("ADAPTCONV"));
-  adaptolbetter_ = sdyn_micro.get<double>("ADAPTCONV_BETTER");
+    isadapttol_ = (sdyn_micro.get<bool>("ADAPTCONV"));
+    adaptolbetter_ = sdyn_micro.get<double>("ADAPTCONV_BETTER");
 
-  // broadcast important data that must be consistent on macro and micro scale (master and
-  // supporting procs)
-  Core::Communication::broadcast(&numstep_, 1, 0, discret_->get_comm());
-  Core::Communication::broadcast(&restart_, 1, 0, discret_->get_comm());
-  Core::Communication::broadcast(&restartevry_, 1, 0, discret_->get_comm());
-
+    // broadcast important data that must be consistent on macro and micro scale (master and
+    // supporting procs)
+    Core::Communication::broadcast(&numstep_, 1, 0, discret_->get_comm());
+    Core::Communication::broadcast(&restart_, 1, 0, discret_->get_comm());
+    Core::Communication::broadcast(&restartevry_, 1, 0, discret_->get_comm());
+  }
   // -------------------------------------------------------------------
   // get a vector layout from the discretization to construct matching
   // vectors and matrices

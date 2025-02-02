@@ -71,7 +71,8 @@ namespace MultiScale
     \brief Standard Constructor
 
     */
-    MicroStatic(const int microdisnum, const double V0);
+    MicroStatic(
+        const int microdisnum, const double V0, const bool singleHomogenizationOnly = false);
 
     /*!
     \brief Destructor
@@ -342,6 +343,10 @@ namespace MultiScale
 
     int microdisnum_;  //!< number of RVE
 
+    bool singleHomogenizationOnly_;  //!< If false the solution must be provided exeternally as only
+                                     //!< the homogenization is only done one time with
+
+    // data provided form the new time integration
     double V0_;       //!< initial volume of RVE
     double density_;  //!< initial density of RVE
 
