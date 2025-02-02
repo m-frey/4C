@@ -9,9 +9,12 @@
 
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
+#include "4C_linalg_sparsematrix.hpp"
+#include "4C_linalg_utils_sparse_algebra_create.hpp"
+#include "4C_linalg_utils_sparse_algebra_print.hpp"
+#include "4C_stru_multi_microstatic.hpp"
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
-
 FOUR_C_NAMESPACE_OPEN
 
 
@@ -52,6 +55,103 @@ int Adapter::StructureTimeLoop::integrate()
       pre_update();
       update();
       post_update();
+
+      /*  =========================================================================================
+       *              STATIC HOMOGENIZAITON
+       *  =========================================================================================
+       */
+      {
+        auto problem = Global::Problem::instance();
+        auto discret_ = problem->get_dis("structure");
+        const Epetra_Map* dofrowmap = discret_->dof_row_map();
+        auto stiff_ = Teuchos::rcp(new Core::LinAlg::SparseMatrix(*dofrowmap, 81, true, true));
+
+        auto dt_ = 0.;
+        auto timen_ = 1.;
+
+        auto dispn_ = dispn();
+        Teuchos::RCP<Epetra_Vector> disn_ = Teuchos::rcp(new Epetra_Vector(*dispn_));
+        Teuchos::RCP<Epetra_Vector> disi_ = Teuchos::rcp(new Epetra_Vector(*dispn_));
+        Teuchos::RCP<Epetra_Vector> fintn_ = Teuchos::rcp(new Epetra_Vector(*freact()));
+        fintn_->PutScalar(0.0);
+        disn_->PutScalar(0.0);
+
+        //---------------------------- compute internal forces and stiffness
+        // zero out stiffness
+        stiff_->zero();
+        // create the parameters for the discretization
+        Teuchos::ParameterList p;
+        // action for elements
+        p.set("action", "calc_struct_nlnstiff");
+        // other parameters that might be needed by the elements
+        p.set("total time", timen_);
+        p.set("delta time", dt_);
+        // set vector values needed by elements
+        discret_->clear_state();
+        // we do not need to scale disi_ here with 1-alphaf (cf. strugenalpha), since
+        // everything on the microscale "lives" at the pseudo generalized midpoint
+        // -> we solve our quasi-static problem there and only update data to the "end"
+        // of the time step after having finished a macroscopic dt
+        discret_->set_state("residual displacement", disi_);
+        discret_->set_state("displacement", disn_);
+
+        std::cout << "\ndisi_ (residual displacement:) " << *disi_ << std::endl;
+        std::cout << "\ndisn_ (displacement:) " << *disn_ << std::endl;
+
+
+        fintn_->PutScalar(0.0);  // initialise internal force vector
+        discret_->evaluate(p, stiff_, Teuchos::null, fintn_, Teuchos::null, Teuchos::null);
+
+        // std::cout << "\nFINT (AFTER evaluate NEWTIMINT) = " << *fintn_ << std::endl;
+        // std::cout << "\nstiff_ (AFTER evaluate NEWTIMINT)" << std::endl;
+        // stiff_->epetra_matrix()->Print(std::cout);
+        Core::LinAlg::print_matrix_in_matlab_format("stiff_in_nti", *stiff_->epetra_matrix(), true);
+        discret_->clear_state();
+      }
+      auto dispn_ = dispn();
+      std::cout << "====== dispn is: (NEW TIMEINT) =====\n" << *dispn_;
+
+      auto fr = freact();
+      std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
+
+      // static homogen. as OUTPUT:
+      auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
+      // MicroStatic_->import_test_freat();
+      //  MicroStatic_->import_freact(freact());
+
+      // Use reaktion force from minimal test just to check everything works as planed:
+      // MicroStatic_->freactn_ = freact();
+
+      // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
+
+
+      // overwrite reaction force with result from the
+      // MicroStatic_->freactn_ = freact_from_micro;
+
+      Core::LinAlg::Matrix<6, 1> stress(true);
+      Core::LinAlg::Matrix<6, 6> cmat(true);
+
+      // ===================================================
+      Core::LinAlg::Matrix<3, 3> defgrd(true);
+      defgrd(0, 0) = 0.977655;
+      defgrd(0, 1) = 4.90714e-17;
+      defgrd(0, 2) = -4.81204e-18;
+      defgrd(1, 0) = 7.62351e-17;
+      defgrd(1, 1) = 0.977655;
+      defgrd(1, 2) = -4.89088e-17;
+      defgrd(2, 1) = 1.11022e-16;
+      defgrd(2, 1) = 0.0;
+      defgrd(2, 2) = 1.09394;
+
+      // =====================================================
+      const bool mod_newton = false;
+      bool build_stiff = true;
+      MicroStatic_->static_homogenization(&stress, &cmat, &defgrd, mod_newton, build_stiff);
+      /*  =========================================================================================
+       *              STATIC HOMOGENIZAITON END
+       *  =========================================================================================
+       *
+
 
       // write output
       output();
