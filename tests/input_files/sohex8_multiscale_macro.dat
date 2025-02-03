@@ -70,6 +70,9 @@ RHO_INF                         0.7
 --------------------------------------------------------------------SOLVER 1
 NAME                            Structure_Solver
 SOLVER                          UMFPACK
+--------------------------------------------------------------------SOLVER 9
+NAME                            Structure_Solver
+SOLVER                          UMFPACK
 ----------------------------------------------DESIGN SURF NEUMANN CONDITIONS
 // DOBJECT CURVE FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL FUNC FUNC FUNC FUNC FUNC FUNC TYPE
 DSURF                           2
