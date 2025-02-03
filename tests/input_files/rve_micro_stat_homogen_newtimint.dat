@@ -1,16 +1,17 @@
------------------------------------------------------------------PROBLEM TYP
-PROBLEMTYP                      Structure
-RESTART                         0
---------------------------------------------------------------DISCRETISATION
-NUMFLUIDDIS                     0
-NUMSTRUCDIS                     1
-NUMALEDIS                       0
-NUMTHERMDIS                     0
+----------------------------------------------------------------PROBLEM SIZE
+DIM                             3
+MATERIALS                       1
+-----------------------------------------------------------------PROBLEM TYPE
+PROBLEMTYPE                      Structure
 --------------------------------------------------------------------------IO
-OUTPUT_BIN                      Yes
-STRUCT_DISP                     Yes
-STRUCT_STRESS                   Yes
-FLUID_STRESS                    No
+OUTPUT_BIN                      yes
+STRUCT_DISP                     yes
+FILESTEPS                       1000
+VERBOSITY                       Standard
+STRUCT_STRAIN                   gl
+STRUCT_STRESS                   cauchy
+OUTPUT_SPRING                   Yes
+WRITE_INITIAL_STATE             no
 ---------------------------------------------------------IO/RUNTIME VTK OUTPUT
 OUTPUT_DATA_FORMAT              binary
 INTERVAL_STEPS                  1
@@ -20,10 +21,10 @@ OUTPUT_STRUCTURE                yes
 DISPLACEMENT                    yes
 ELEMENT_OWNER                   yes
 STRESS_STRAIN                   yes
-----------------------------------------------------------STRUCTURAL DYNAMIC
+------------------------------------------------------------STRUCTURAL DYNAMIC
 INT_STRATEGY                    Standard
 LINEAR_SOLVER                   1
-DYNAMICTYPE                      GenAlpha
+DYNAMICTYPE                     GenAlpha
 RESULTSEVERY                     1
 RESTARTEVERY                     1
 NLNSOL                          fullnewton                    // fullnewton modnewton matfreenewton nlncg ptc
@@ -39,27 +40,18 @@ NORMCOMBI_RESFDISP              And
 TOLDISP                         1.0E-4
 TOLRES                          1.0E-4
 MAXITER                         30
-----------------------------------------------------IO/MONITOR STRUCTURE DBC
-INTERVAL_STEPS                   1
-PRECISION_FILE                   16
-PRECISION_SCREEN                 5
-FILE_TYPE                        csv
-WRITE_HEADER                     yes
----------------------------------------------------------------STRUCTURAL DYNAMIC/GENALPHA
-GENAVG                          TrLike
-RHO_INF                         0.9
--------------------------------------------------------------------SOLVER 1
-NAME                            Structure_Solver
-SOLVER                          UMFPACK
---------------------------------------------------------------------SOLVER 9
-NAME                            Micro_Struct_Solver
-SOLVER                          UMFPACK
----------------------------------------------------------------------------FUNCT1
-SYMBOLIC_FUNCTION_OF_SPACE_TIME t*((0.9-1)*x+0.01*y+0.01*z)
----------------------------------------------------------------------------FUNCT2
-SYMBOLIC_FUNCTION_OF_SPACE_TIME t*(0.01*x+(0.9-1)*y+0.01*z)
----------------------------------------------------------------------------FUNCT3
-SYMBOLIC_FUNCTION_OF_SPACE_TIME t*(0.01*x+0.01*y+(0.9-1)*z)
+-----------------------------------------------------------STRUCT NOX/Printing
+Outer Iteration                 = Yes
+Inner Iteration                 = No
+Outer Iteration StatusTest      = No
+---------------------------------------------------------------------MATERIALS
+MAT 1 MAT_Struct_StVenantKirchhoff YOUNG 10. NUE 0.2 DENS 1.
+--------------------------------------------------------------------------FUNCT1
+SYMBOLIC_FUNCTION_OF_SPACE_TIME t*(0.1*x+0.0*y+0.0*z)
+--------------------------------------------------------------------------FUNCT2
+SYMBOLIC_FUNCTION_OF_SPACE_TIME t*(0.0*x+0.1*y+0.0*z)
+--------------------------------------------------------------------------FUNCT3
+SYMBOLIC_FUNCTION_OF_SPACE_TIME t*(0.0*x+0.0*y+0.1*z)
 ----------------------------------------DESIGN SURF DIRICH CONDITIONS
 DSURF 6
 E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
@@ -68,7 +60,13 @@ E 3 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
 E 4 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
 E 5 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
 E 6 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
----------------------------------------DESIGN POINT DIRICH CONDITIONS
+--------------------------------------------------------------------SOLVER 1
+NAME                            Structure_Solver
+SOLVER                          UMFPACK
+--------------------------------------------------------------------SOLVER 9
+NAME                            Structure_Solver
+SOLVER                          UMFPACK
+//---------------------------------------DESIGN POINT DIRICH CONDITIONS
 //DPOINT 56
 //E 1 - NUMDOF 3 ONOFF 1 1 1 VAL 0.011173 0.011173 -0.047305 FUNCT 1 1 1 TAG monitor_reaction
 //E 24 - NUMDOF 3 ONOFF 1 1 1 VAL -0.011173 0.011173 -0.047305 FUNCT 1 1 1 TAG monitor_reaction
@@ -127,15 +125,15 @@ E 6 - NUMDOF 3 ONOFF 1 1 1 VAL 1 1 1 FUNCT 1 2 3
 //E 48 - NUMDOF 3 ONOFF 1 1 1 VAL -0.003724 0.003724 0.047305 FUNCT 1 1 1
 //E 52 - NUMDOF 3 ONOFF 1 1 1 VAL -0.003724 -0.003724 0.047305 FUNCT 1 1 1 TAG monitor_reaction
 
--------------------------------------------------------MICROSCALE CONDITIONS
-// DOBJECT FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL CURVE CURVE CURVE CURVE CURVE CURVE
-DSURF                           6
-E 1 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
-E 2 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
-E 3 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
-E 4 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
-E 5 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
-E 6 - DEFGRD_ENTRIES 9 F 0.9 0 0 0 0.9 0 0 0 0.9
+//-------------------------------------------------------MICROSCALE CONDITIONS
+//// DOBJECT FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL CURVE CURVE CURVE CURVE CURVE CURVE
+//DSURF                           6
+//E 1 -
+//E 2 -
+//E 3 -
+//E 4 -
+//E 5 -
+//E 6 -
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 1 DNODE 1
 NODE 2 DNODE 2
@@ -505,7 +503,4 @@ NODE 64 COORD 5.000000000000000e-01 5.000000000000000e-01 5.000000000000000e-01
 25 SOLID HEX8 61 64 62 53 52 63 54 39 MAT 1 KINEM nonlinear
 26 SOLID HEX8 60 61 53 50 48 52 39 28 MAT 1 KINEM nonlinear
 27 SOLID HEX8 56 60 50 41 42 48 28 22 MAT 1 KINEM nonlinear
--------------------------------------------------------------------MATERIALS
-//                              MAT_Struct_StVenantKirchhoff
-MAT 1 MAT_Struct_StVenantKirchhoff YOUNG 10. NUE 0.2 DENS 1.
--------------------------------------------------------------------------END
+

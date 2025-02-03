@@ -130,6 +130,11 @@ MultiScale::MicroStatic::MicroStatic(
     Core::Communication::broadcast(&restart_, 1, 0, discret_->get_comm());
     Core::Communication::broadcast(&restartevry_, 1, 0, discret_->get_comm());
   }
+  else
+  {
+    // The time is requ. for runtime output
+    time_ = 0.0;
+  }
   // -------------------------------------------------------------------
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
@@ -1036,6 +1041,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
     Core::LinAlg::MultiVector<double> cmatpf(D_->Map(), 9);
 
     // make a copy
+    stiff_->complete();
     stiff_dirich_ = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_);
 
     stiff_->apply_dirichlet(*dirichtoggle_);
