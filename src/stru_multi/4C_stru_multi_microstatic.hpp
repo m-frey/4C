@@ -255,6 +255,8 @@ namespace MultiScale
 
     double density() const { return density_; };
 
+    std::shared_ptr<Core::LinAlg::Vector<double>> freactn_;
+
    private:
     std::shared_ptr<Core::IO::DiscretizationVisualizationWriterMesh> micro_vtu_writer_;
     Core::IO::VisualizationParameters visualization_params_;
@@ -323,7 +325,6 @@ namespace MultiScale
     std::shared_ptr<Core::LinAlg::Vector<double>> disi_;
     std::shared_ptr<Core::LinAlg::Vector<double>> fintn_;
     std::shared_ptr<Core::LinAlg::Vector<double>> fresn_;
-    std::shared_ptr<Core::LinAlg::Vector<double>> freactn_;
 
     std::shared_ptr<std::vector<char>> stress_;
     std::shared_ptr<std::vector<char>> strain_;

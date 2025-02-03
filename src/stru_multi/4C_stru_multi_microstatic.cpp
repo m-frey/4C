@@ -1191,8 +1191,23 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
       convert_mat(cmatpf, F_inv, *stress, *cmat);
 
       macro_cmat_ = Core::LinAlg::Matrix(*cmat);
-    }
 
+      std::cout << "\n================================================================\n";
+      std::cout << "\n======  STATIC HOMOGENIZATION OUTPUT SUMMARY : =================\n";
+      std::cout << "\n================================================================\n";
+
+      std::cout << " ============ r-P (stress) ====== \n";
+      P.print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-PK2 (stress) ====== \n";
+      stress->print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-cmat (tangent) ====== \n";
+      cmat->print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-cmatpf (tangent-transformed) ====== \n";
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+    }
     // after having constructed the stiffness matrix, this need not be
     // done in case of modified Newton as nonlinear solver of the
     // macroscale until the next update of macroscopic time step, when

@@ -119,12 +119,12 @@ int Adapter::StructureTimeLoop::integrate()
       // std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
 
       // static homogen. as OUTPUT:
-      // auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
+      auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
       // MicroStatic_->import_test_freat();
       //  MicroStatic_->import_freact(freact());
 
       // Use reaktion force from minimal test just to check everything works as planed:
-      // MicroStatic_->freactn_ = freact();
+      MicroStatic_->freactn_ = freact();
 
       // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
 
@@ -150,7 +150,7 @@ int Adapter::StructureTimeLoop::integrate()
       // =====================================================
       const bool mod_newton = false;
       bool build_stiff = true;
-      // MicroStatic_->static_homogenization(&stress, &cmat, &defgrd, mod_newton, build_stiff);
+      MicroStatic_->static_homogenization(&stress, &cmat, &defgrd, mod_newton, build_stiff);
       /*  =========================================================================================
        *              STATIC HOMOGENIZAITON END
        *  =========================================================================================

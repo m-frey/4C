@@ -28,8 +28,8 @@ DYNAMICTYPE                     GenAlpha
 RESULTSEVERY                     1
 RESTARTEVERY                     1
 NLNSOL                          fullnewton                    // fullnewton modnewton matfreenewton nlncg ptc
-TIMESTEP                        0.1
-NUMSTEP                         10
+TIMESTEP                        1
+NUMSTEP                         1
 MAXTIME                         1
 DAMPING                         No
 M_DAMP                          0.5
@@ -124,16 +124,15 @@ SOLVER                          UMFPACK
 //E 47 - NUMDOF 3 ONOFF 1 1 1 VAL 0.003724 -0.003724 0.047305 FUNCT 1 1 1
 //E 48 - NUMDOF 3 ONOFF 1 1 1 VAL -0.003724 0.003724 0.047305 FUNCT 1 1 1
 //E 52 - NUMDOF 3 ONOFF 1 1 1 VAL -0.003724 -0.003724 0.047305 FUNCT 1 1 1 TAG monitor_reaction
-
-//-------------------------------------------------------MICROSCALE CONDITIONS
-//// DOBJECT FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL CURVE CURVE CURVE CURVE CURVE CURVE
-//DSURF                           6
-//E 1 -
-//E 2 -
-//E 3 -
-//E 4 -
-//E 5 -
-//E 6 -
+-------------------------------------------------------MICROSCALE CONDITIONS
+// DOBJECT FLAG FLAG FLAG FLAG FLAG FLAG VAL VAL VAL VAL VAL VAL CURVE CURVE CURVE CURVE CURVE CURVE
+DSURF                           6
+E 1 -
+E 2 -
+E 3 -
+E 4 -
+E 5 -
+E 6 -
 ---------------------------------------------------------DNODE-NODE TOPOLOGY
 NODE 1 DNODE 1
 NODE 2 DNODE 2
