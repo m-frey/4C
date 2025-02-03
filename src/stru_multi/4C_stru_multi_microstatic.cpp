@@ -985,6 +985,32 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
 
   // IMPORTANT: the RVE has to be centered around (0,0,0), otherwise
   // modifications of this approach are necessary.
+  std::cout << "==========================================================================="
+            << std::endl;
+  std::cout << "==============   Begin of Static Homogenization      ====================="
+            << std::endl;
+  std::cout << "==========================================================================="
+            << std::endl;
+
+  std::cout << " \n=== defgrad is: ==== \n" << std::endl;
+  defgrd->print(std::cout);
+  std::cout << "===========E\n";
+  std::cout << "=========  State of members at begin: freact_, Xp_, D_ ============" << std::endl;
+  std::cout << "\n === np_ === \n" << std::endl;
+  std::cout << "\n np = " << np_ << std::endl;
+  std::cout << "===========E\n";
+  std::cout << "\n === v0_ === \n" << std::endl;
+  std::cout << "\n V0 = " << V0_ << std::endl;
+  std::cout << "===========E\n";
+  std::cout << " \n=== Xp_ ==== \n" << std::endl;
+  Xp_->Print(std::cout);
+  std::cout << "===========E\n";
+  std::cout << " \n=== D_ ==== \n" << std::endl;
+  D_->Print(std::cout);
+  std::cout << "===========E\n";
+  std::cout << "\n  === freactn_ \n" << std::endl;
+  freactn_->Print(std::cout);
+  std::cout << "===========E\n";
 
   freactn_->Scale(-1.0);
 
@@ -1005,6 +1031,11 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
       P(i, j) = sum;
     }
   }
+
+  std::cout << "\n  === P - Stress Intermediate result: \n" << std::endl;
+  P.print(std::cout);
+  std::cout << "===========E\n";
+
 
   // determine inverse of deformation gradient
 
@@ -1027,6 +1058,10 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
     (*stress)(5) += F_inv(0, i) * P(i, 2);  // S13
   }
 
+  std::cout << "\n  === P - Stress Intermediate result: \n" << std::endl;
+  stress->print(std::cout);
+  std::cout << "===========E\n";
+
   if (build_stiff)
   {
     // The calculation of the consistent macroscopic constitutive tensor
@@ -1037,9 +1072,15 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
     // strains based on a minimization of averaged incremental energy.
     // Computer Methods in Applied Mechanics and Engineering 192: 559-591, 2003.
 
+    std::cout << "\n ==== dof row map of discret: \n" << *discret_->dof_row_map() << std::endl;
+    std::cout << "===========E\n";
+
+
     const Epetra_Map* dofrowmap = discret_->dof_row_map();
     Core::LinAlg::MultiVector<double> cmatpf(D_->Map(), 9);
 
+    std::cout << "\n ==== Map of D_: \n" << D_->Map() << std::endl;
+    std::cout << "===========E\n";
     // make a copy
     stiff_->complete();
     stiff_dirich_ = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_);
