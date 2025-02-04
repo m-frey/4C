@@ -982,7 +982,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
   // inertial forces (which simplifies matters significantly) whereas
   // the calling macroscopic material routine demands a second
   // Piola-Kirchhoff stress tensor.
-
+  V0_ = 1.0;
   // IMPORTANT: the RVE has to be centered around (0,0,0), otherwise
   // modifications of this approach are necessary.
   std::cout << "==========================================================================="
@@ -1207,6 +1207,19 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
       std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
       std::cout << " ============ r-cmatpf (tangent-transformed) ====== \n";
       std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+
+      auto cmat_value = cmat[0](1, 1);
+      auto value = P(1, 1);
+      const char* filePath = "/home/a11bmofr/exp/510/value_from_statichomogen.txt";
+
+      std::ofstream file(filePath, std::ios::app);  // Open in append mode
+
+      if (file.is_open())
+      {
+        file << P(0, 0) << ";" << P(1, 1) << ";" << stress[0](0) << ";" << stress[0](1) << ";"
+             << cmat[0](0, 0) << ";" << cmat[0](1, 1) << "\n";
+        file.close();
+      }
     }
     // after having constructed the stiffness matrix, this need not be
     // done in case of modified Newton as nonlinear solver of the

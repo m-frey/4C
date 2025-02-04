@@ -13,6 +13,8 @@
 #include "4C_linalg_utils_sparse_algebra_create.hpp"
 #include "4C_linalg_utils_sparse_algebra_print.hpp"
 #include "4C_stru_multi_microstatic.hpp"
+#include "4C_structure_new_model_evaluator_generic.hpp"
+#include <4C_solver_nonlin_nox_problem.hpp>
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 FOUR_C_NAMESPACE_OPEN
@@ -125,7 +127,6 @@ int Adapter::StructureTimeLoop::integrate()
 
       // Use reaktion force from minimal test just to check everything works as planed:
       MicroStatic_->freactn_ = freact();
-
       // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
 
 
@@ -137,16 +138,25 @@ int Adapter::StructureTimeLoop::integrate()
 
       // ===================================================
       Core::LinAlg::Matrix<3, 3> defgrd(true);
-      defgrd(0, 0) = 0.977655;
-      defgrd(0, 1) = 4.90714e-17;
-      defgrd(0, 2) = -4.81204e-18;
-      defgrd(1, 0) = 7.62351e-17;
-      defgrd(1, 1) = 0.977655;
-      defgrd(1, 2) = -4.89088e-17;
-      defgrd(2, 1) = 1.11022e-16;
-      defgrd(2, 1) = 0.0;
-      defgrd(2, 2) = 1.09394;
+      defgrd(0, 0) = 0.9;  // 0.977655;
+      defgrd(0, 1) = 0.0;  // 4.90714e-17;
+      defgrd(0, 2) = 0.0;  //-4.81204e-18;
+      defgrd(1, 0) = 0.0;  // 7.62351e-17;
+      defgrd(1, 1) = 0.9;  // 0.977655;
+      defgrd(1, 2) = 0.0;  //-4.89088e-17;
+      defgrd(2, 1) = 0.0;  // 1.11022e-16;
+      defgrd(2, 1) = 0.0;  // 0.0;
+      defgrd(2, 2) = 0.9;  // 1.09394;
 
+      // ==== scale def grad:
+
+      // Get defgrad from this section
+      const Teuchos::ParameterList& sdyn_macro =
+          Global::Problem::instance()->structural_dynamic_params();
+
+      std::cout << "\n time now, it is:  " << time() << "\n";
+
+      defgrd.scale(time());
       // =====================================================
       const bool mod_newton = false;
       bool build_stiff = true;
