@@ -138,15 +138,26 @@ int Adapter::StructureTimeLoop::integrate()
 
       // ===================================================
       Core::LinAlg::Matrix<3, 3> defgrd(true);
-      defgrd(0, 0) = 0.9;  // 0.977655;
-      defgrd(0, 1) = 0.0;  // 4.90714e-17;
-      defgrd(0, 2) = 0.0;  //-4.81204e-18;
-      defgrd(1, 0) = 0.0;  // 7.62351e-17;
-      defgrd(1, 1) = 0.9;  // 0.977655;
-      defgrd(1, 2) = 0.0;  //-4.89088e-17;
-      defgrd(2, 1) = 0.0;  // 1.11022e-16;
-      defgrd(2, 1) = 0.0;  // 0.0;
-      defgrd(2, 2) = 0.9;  // 1.09394;
+
+      defgrd(0, 0) = 0.977655;
+      defgrd(0, 1) = 2.61724e-17;
+      defgrd(0, 2) = 1.49806e-17;
+      defgrd(1, 0) = 2.32727e-17;
+      defgrd(1, 1) = 0.977655;
+      defgrd(1, 2) = 2.63945e-17;
+      defgrd(2, 0) = -1.11022e-16;
+      defgrd(2, 1) = 0;
+      defgrd(2, 2) = 1.09394;
+
+      // defgrd(0, 0) = 0.9;  // 0.977655;
+      // defgrd(0, 1) = 0.0;  // 4.90714e-17;
+      // defgrd(0, 2) = 0.0;  //-4.81204e-18;
+      // defgrd(1, 0) = 0.0;  // 7.62351e-17;
+      // defgrd(1, 1) = 0.9;  // 0.977655;
+      // defgrd(1, 2) = 0.0;  //-4.89088e-17;
+      // defgrd(2, 1) = 0.0;  // 1.11022e-16;
+      // defgrd(2, 1) = 0.0;  // 0.0;
+      // defgrd(2, 2) = 0.9;  // 1.09394;
 
       // ==== scale def grad:
 
@@ -154,9 +165,12 @@ int Adapter::StructureTimeLoop::integrate()
       const Teuchos::ParameterList& sdyn_macro =
           Global::Problem::instance()->structural_dynamic_params();
 
-      std::cout << "\n time now, it is:  " << time() << "\n";
+      auto dt = sdyn_macro.get<double>("TIMESTEP");
 
-      defgrd.scale(time());
+
+      std::cout << "\n time now, it is:  " << time() - dt << "\n";
+
+      defgrd.scale(time() - dt);
       // =====================================================
       const bool mod_newton = false;
       bool build_stiff = true;
