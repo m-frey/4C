@@ -295,6 +295,17 @@ void MultiScale::MicroStatic::predictor(Core::LinAlg::Matrix<3, 3>* defgrd)
     FOUR_C_THROW("requested predictor not implemented on the micro-scale");
 }
 
+void MultiScale::MicroStatic::import_freact(std::shared_ptr<Core::LinAlg::Vector<double>> freact)
+{
+  // extract reaction forces
+  int err = freactn_->Import(*freact, *importp_, Insert);
+  std::cout << "\nfreactn_ nach IMPORT_ :" << std::endl;
+  freact->Print(std::cout);
+  if (err)
+    FOUR_C_THROW(
+        "Importing reaction forces of prescribed dofs using importer returned err=%d", err);
+}
+
 
 /*----------------------------------------------------------------------*
  |  do predictor step (public)                               mwgee 03/07|

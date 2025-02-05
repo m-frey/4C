@@ -104,6 +104,12 @@ namespace MultiScale
     void predictor(Core::LinAlg::Matrix<3, 3>* defgrd);
 
     /*!
+    \brief Import externally calculated reaction forces
+
+    */
+    void import_freact(std::shared_ptr<Core::LinAlg::Vector<double>> freact);
+
+    /*!
     \brief Predictor step
 
     */

@@ -123,10 +123,9 @@ int Adapter::StructureTimeLoop::integrate()
       // static homogen. as OUTPUT:
       auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
       // MicroStatic_->import_test_freat();
-      //  MicroStatic_->import_freact(freact());
+      MicroStatic_->import_freact(freact());
 
       // Use reaktion force from minimal test just to check everything works as planed:
-      MicroStatic_->freactn_ = freact();
       // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
 
 
@@ -168,8 +167,9 @@ int Adapter::StructureTimeLoop::integrate()
       auto dt = sdyn_macro.get<double>("TIMESTEP");
 
 
-      std::cout << "\n time now, it is:  " << time() - dt << "\n";
-
+      std::cout << "\n time now, it is: time()-dt =  " << time() - dt << "\n";
+      std::cout << "\n time now, it is: structure time_old =  " << structure_->time_old() << "\n";
+      std::cout << "\n time now, it is: structure time =  " << structure_->time() << "\n";
       defgrd.scale(time() - dt);
       // =====================================================
       const bool mod_newton = false;
