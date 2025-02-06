@@ -138,14 +138,25 @@ int Adapter::StructureTimeLoop::integrate()
       // ===================================================
       Core::LinAlg::Matrix<3, 3> defgrd(true);
 
+      // defgrd(0, 0) = 0.977655;
+      // defgrd(0, 1) = 2.61724e-17;
+      // defgrd(0, 2) = 1.49806e-17;
+      // defgrd(1, 0) = 2.32727e-17;
+      // defgrd(1, 1) = 0.977655;
+      // defgrd(1, 2) = 2.63945e-17;
+      // defgrd(2, 0) = -1.11022e-16;
+      // defgrd(2, 1) = 0;
+      // defgrd(2, 2) = 1.09394;
+
+      // from 520 Fe2 results
       defgrd(0, 0) = 0.977655;
-      defgrd(0, 1) = 2.61724e-17;
-      defgrd(0, 2) = 1.49806e-17;
-      defgrd(1, 0) = 2.32727e-17;
+      defgrd(0, 1) = -1.00491e-17;
+      defgrd(0, 2) = 2.47629e-18;
+      defgrd(1, 0) = 4.28386e-17;
       defgrd(1, 1) = 0.977655;
-      defgrd(1, 2) = 2.63945e-17;
-      defgrd(2, 0) = -1.11022e-16;
-      defgrd(2, 1) = 0;
+      defgrd(1, 2) = -2.61468e-17;
+      defgrd(2, 0) = 0.0;
+      defgrd(2, 1) = 1.11022e-16;
       defgrd(2, 2) = 1.09394;
 
       // defgrd(0, 0) = 0.9;  // 0.977655;
