@@ -16,6 +16,7 @@
 #include "4C_structure_new_model_evaluator_generic.hpp"
 #include <4C_solver_nonlin_nox_problem.hpp>
 
+#include <boost/math/special_functions/math_fwd.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 FOUR_C_NAMESPACE_OPEN
 
@@ -149,15 +150,38 @@ int Adapter::StructureTimeLoop::integrate()
       // defgrd(2, 2) = 1.09394;
 
       // from 520 Fe2 results
-      defgrd(0, 0) = 0.977655;
-      defgrd(0, 1) = -1.00491e-17;
-      defgrd(0, 2) = 2.47629e-18;
-      defgrd(1, 0) = 4.28386e-17;
-      defgrd(1, 1) = 0.977655;
-      defgrd(1, 2) = -2.61468e-17;
-      defgrd(2, 0) = 0.0;
-      defgrd(2, 1) = 1.11022e-16;
-      defgrd(2, 2) = 1.09394;
+      // Fs = F + df * beta
+
+      const Teuchos::ParameterList& sdyn_macro =
+          Global::Problem::instance()->structural_dynamic_params();
+
+      auto maxtime = sdyn_macro.get<double>("MAXTIME");
+      std::cout << "\nmaxtime used for scaling: " << maxtime << " \n";
+      double endTime = 1.0;
+      double beta = (1. - time_old() / endTime);
+      std::cout << "\n beta used for scaling:" << beta << " \n";
+
+
+      const double F_11 = 0.977655;
+      const double F_12 = 1.00491e-17;
+      const double F_13 = 2.47629e-18;
+      const double F_21 = 4.28386e-17;
+      const double F_22 = 0.977655;
+      const double F_23 = -2.61468e-17;
+      const double F_31 = 0.0;
+      const double F_32 = 1.11022e-16;
+      const double F_33 = 1.09394;
+
+      defgrd(0, 0) = F_11 + beta * (1. - F_11);
+      std::cout << "beta * (1 - F11)" << beta * (1. - F_11) << std::endl;
+      defgrd(0, 1) = -1.00491e-17 - beta * (F_12);
+      defgrd(0, 2) = 2.47629e-18 - beta * (F_13);
+      defgrd(1, 0) = 4.28386e-17 - beta * (F_21);
+      defgrd(1, 1) = 0.977655 + beta * (1. - F_22);
+      defgrd(1, 2) = -2.61468e-17 - beta * (F_23);
+      defgrd(2, 0) = 0.0 - beta * (F_31);
+      defgrd(2, 1) = 1.11022e-16 - beta * (F_32);
+      defgrd(2, 2) = 1.09394 + beta * (1. - F_33);
 
       // defgrd(0, 0) = 0.9;  // 0.977655;
       // defgrd(0, 1) = 0.0;  // 4.90714e-17;
@@ -172,8 +196,6 @@ int Adapter::StructureTimeLoop::integrate()
       // ==== scale def grad:
 
       // Get defgrad from this section
-      const Teuchos::ParameterList& sdyn_macro =
-          Global::Problem::instance()->structural_dynamic_params();
 
       auto dt = sdyn_macro.get<double>("TIMESTEP");
 
@@ -181,7 +203,6 @@ int Adapter::StructureTimeLoop::integrate()
       std::cout << "\n time now, it is: time()-dt =  " << time() - dt << "\n";
       std::cout << "\n time now, it is: structure time_old =  " << structure_->time_old() << "\n";
       std::cout << "\n time now, it is: structure time =  " << structure_->time() << "\n";
-      defgrd.scale(time() - dt);
       // =====================================================
       const bool mod_newton = false;
       bool build_stiff = true;
