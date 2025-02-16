@@ -162,43 +162,30 @@ int Adapter::StructureTimeLoop::integrate()
       std::cout << "\n beta used for scaling:" << beta << " \n";
 
 
-      const double F_11 = 0.977655;
-      const double F_12 = 1.00491e-17;
-      const double F_13 = 2.47629e-18;
-      const double F_21 = 4.28386e-17;
-      const double F_22 = 0.977655;
-      const double F_23 = -2.61468e-17;
-      const double F_31 = 0.0;
-      const double F_32 = 1.11022e-16;
-      const double F_33 = 1.09394;
+      const double F_11 = sdyn_macro.get<double>("F11");
+      const double F_12 = sdyn_macro.get<double>("F12");
+      const double F_13 = sdyn_macro.get<double>("F13");
+      const double F_21 = sdyn_macro.get<double>("F21");
+      const double F_22 = sdyn_macro.get<double>("F22");
+      const double F_23 = sdyn_macro.get<double>("F23");
+      const double F_31 = sdyn_macro.get<double>("F31");
+      const double F_32 = sdyn_macro.get<double>("F32");
+      const double F_33 = sdyn_macro.get<double>("F33");
 
       defgrd(0, 0) = F_11 + beta * (1. - F_11);
-      std::cout << "beta * (1 - F11)" << beta * (1. - F_11) << std::endl;
-      defgrd(0, 1) = -1.00491e-17 - beta * (F_12);
-      defgrd(0, 2) = 2.47629e-18 - beta * (F_13);
-      defgrd(1, 0) = 4.28386e-17 - beta * (F_21);
-      defgrd(1, 1) = 0.977655 + beta * (1. - F_22);
-      defgrd(1, 2) = -2.61468e-17 - beta * (F_23);
-      defgrd(2, 0) = 0.0 - beta * (F_31);
-      defgrd(2, 1) = 1.11022e-16 - beta * (F_32);
-      defgrd(2, 2) = 1.09394 + beta * (1. - F_33);
-
-      // defgrd(0, 0) = 0.9;  // 0.977655;
-      // defgrd(0, 1) = 0.0;  // 4.90714e-17;
-      // defgrd(0, 2) = 0.0;  //-4.81204e-18;
-      // defgrd(1, 0) = 0.0;  // 7.62351e-17;
-      // defgrd(1, 1) = 0.9;  // 0.977655;
-      // defgrd(1, 2) = 0.0;  //-4.89088e-17;
-      // defgrd(2, 1) = 0.0;  // 1.11022e-16;
-      // defgrd(2, 1) = 0.0;  // 0.0;
-      // defgrd(2, 2) = 0.9;  // 1.09394;
+      defgrd(0, 1) = F_12 - beta * (F_12);
+      defgrd(0, 2) = F_13 - beta * (F_13);
+      defgrd(1, 0) = F_21 - beta * (F_21);
+      defgrd(1, 1) = F_22 + beta * (1. - F_22);
+      defgrd(1, 2) = F_23 - beta * (F_23);
+      defgrd(2, 0) = F_31 - beta * (F_31);
+      defgrd(2, 1) = F_32 - beta * (F_32);
+      defgrd(2, 2) = F_33 + beta * (1. - F_33);
 
       // ==== scale def grad:
 
       // Get defgrad from this section
-
       auto dt = sdyn_macro.get<double>("TIMESTEP");
-
 
       std::cout << "\n time now, it is: time()-dt =  " << time() - dt << "\n";
       std::cout << "\n time now, it is: structure time_old =  " << structure_->time_old() << "\n";

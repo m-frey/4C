@@ -141,7 +141,17 @@ namespace Inpar
               Inpar::Solid::PreStress::material_iterative,
               Inpar::Solid::PreStress::material_iterative),
           &sdyn);
-
+      Core::Utils::double_parameter("F11", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F12", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F13", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F21", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F22", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F23", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F31", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F32", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter("F33", 0.0, "Applied Defgrad Entry", &sdyn);
+      Core::Utils::double_parameter(
+          "PRESTRESSTIME", 0.0, "time to switch from pre to post stressing", &sdyn);
       Core::Utils::double_parameter(
           "PRESTRESSTIME", 0.0, "time to switch from pre to post stressing", &sdyn);
 
