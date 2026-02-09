@@ -72,7 +72,8 @@ namespace MultiScale
     \brief Standard Constructor
 
     */
-    MicroStatic(const int microdisnum, const double V0);
+    MicroStatic(
+        const int microdisnum, const double V0, const bool singleHomogenizationOnly = false);
 
     /*!
     \brief Destructor
@@ -101,6 +102,12 @@ namespace MultiScale
 
     */
     void predictor(const Core::LinAlg::Matrix<3, 3>* defgrd);
+
+    /*!
+\brief Import externally calculated reaction forces
+
+*/
+    void import_freact(const std::shared_ptr<Core::LinAlg::Vector<double>>& freact);
 
     /*!
     \brief Predictor step
@@ -200,7 +207,8 @@ namespace MultiScale
 
     */
     void static_homogenization(Core::LinAlg::Matrix<6, 1>* stress, Core::LinAlg::Matrix<6, 6>* cmat,
-        const Core::LinAlg::Matrix<3, 3>* defgrd, const bool mod_newton, bool& build_stiff);
+        const Core::LinAlg::Matrix<3, 3>* defgrd, const bool mod_newton, bool& build_stiff,
+        double time = -1., double call_counter = 99.99);
 
     /*!
     \brief Convert constitutive tensor relating first Piola-Kirchhoff
@@ -300,6 +308,9 @@ namespace MultiScale
     double tolfres_;
     double toldisi_;
 
+
+    Core::LinAlg::Matrix<6, 6> macro_cmat_;  //!< Averaged tangent stiffness tensor
+
     Inpar::Solid::BinaryOp combdisifres_;  //!< binary operator to
                                            // combine displacement and forces
     Inpar::Solid::ConvNorm normtypedisi_;  //!< convergence check for residual displacements
@@ -338,8 +349,14 @@ namespace MultiScale
 
     int microdisnum_;  //!< number of RVE
 
-    double initial_volume_;  //!< initial volume of RVE
-    double density_;         //!< initial density of RVE
+
+
+    bool singleHomogenizationOnly_;  //!< If false the solution must be provided exeternally as only
+                                     //!< the homogenization is only done one time with
+    double initial_volume_;          //!< initial volume of RVE
+    // data provided form the new time integration
+    double V0_;       //!< initial volume of RVE
+    double density_;  //!< initial density of RVE
 
     int ndof_;  //!< number of dofs overall
     int np_;    //!< number of boundary dofs

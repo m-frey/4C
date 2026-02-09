@@ -34,8 +34,11 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------*
  |  ctor (public)|
  *----------------------------------------------------------------------*/
-MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
-    : microdisnum_(microdisnum), initial_volume_(V0)
+MultiScale::MicroStatic::MicroStatic(
+    const int microdisnum, const double V0, const bool singleHomogenizationOnly)
+    : microdisnum_(microdisnum),
+      singleHomogenizationOnly_(singleHomogenizationOnly),
+      initial_volume_(V0)
 {
   FOUR_C_ASSERT_ALWAYS(Global::Problem::instance(microdisnum_)->n_dim() == 3,
       "ONLY 3 dimensional problem allowed on solid microscale");
@@ -60,108 +63,116 @@ MultiScale::MicroStatic::MicroStatic(const int microdisnum, const double V0)
   const Teuchos::ParameterList& sdyn_macro =
       Global::Problem::instance()->structural_dynamic_params();
 
-  // -------------------------------------------------------------------
-  // create a solver
-  // -------------------------------------------------------------------
-  // get the solver number used for structural solver
-  const int linsolvernumber = sdyn_micro.get<int>("LINEAR_SOLVER");
-  // check if the structural solver has a valid solver number
-  FOUR_C_ASSERT_ALWAYS(linsolvernumber != (-1),
-      "No linear solver defined for structural field. Please set LINEAR_SOLVER in STRUCTURAL "
-      "DYNAMIC to a valid number!");
-
-  solver_ = std::make_shared<Core::LinAlg::Solver>(
-      Global::Problem::instance(microdisnum_)->solver_params(linsolvernumber), discret_->get_comm(),
-      Global::Problem::instance()->solver_params_callback(),
-      Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
-          Global::Problem::instance()->io_params(), "VERBOSITY"));
-  compute_null_space_if_necessary(*discret_, solver_->params());
-
-  auto pred = Teuchos::getIntegralValue<Inpar::Solid::PredEnum>(sdyn_micro, "PREDICT");
-  pred_ = pred;
-  combdisifres_ =
-      Teuchos::getIntegralValue<Inpar::Solid::BinaryOp>(sdyn_micro, "NORMCOMBI_RESFDISP");
-  normtypedisi_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_DISP");
-  normtypefres_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_RESF");
-  auto iternorm = Teuchos::getIntegralValue<Inpar::Solid::VectorNorm>(sdyn_micro, "ITERNORM");
-  iternorm_ = iternorm;
-
-  dt_ = sdyn_macro.get<double>("TIMESTEP");
-  // broadcast important data that must be consistent on macro and micro scale (master and
-  // supporting procs)
-  Core::Communication::broadcast(&dt_, 1, 0, discret_->get_comm());
-  time_ = 0.0;
-  timen_ = time_ + dt_;
-  step_ = 0;
-  stepn_ = step_ + 1;
-  numstep_ = sdyn_macro.get<int>("NUMSTEP");
-  maxiter_ = sdyn_micro.get<int>("MAXITER");
-  numiter_ = -1;
-
-  tolfres_ = sdyn_micro.get<double>("TOLRES");
-  toldisi_ = sdyn_micro.get<double>("TOLDISP");
-
-  restart_ = Global::Problem::instance()->restart();
-  restart_every_ = sdyn_macro.get<int>("RESTARTEVERY");
-
-  // i/o options should be read from the corresponding micro-file
-  results_every_ = Global::Problem::instance(microdisnum_)
-                       ->io_params()
-                       .sublist("RUNTIME VTK OUTPUT")
-                       .get<int>("INTERVAL_STEPS");
-
-  const Teuchos::ParameterList& ioflags = Global::Problem::instance(microdisnum_)->io_params();
-  printscreen_ = (ioflags.get<int>("STDOUTEVERY"));
-
-  const Teuchos::ParameterList& visualization_output_paramslist =
-      Global::Problem::instance(microdisnum_)
-          ->io_params()
-          .sublist("RUNTIME VTK OUTPUT")
-          .sublist("STRUCTURE");
-  output_displacement_state_ = visualization_output_paramslist.get<bool>("DISPLACEMENT");
-  output_element_owner_ = visualization_output_paramslist.get<bool>("ELEMENT_OWNER");
-  output_element_material_id_ = visualization_output_paramslist.get<bool>("ELEMENT_MAT_ID");
-  output_stress_strain_ = visualization_output_paramslist.get<bool>("STRESS_STRAIN");
-  gauss_point_data_output_type_ = Teuchos::getIntegralValue<Inpar::Solid::GaussPointDataOutputType>(
-      visualization_output_paramslist, "GAUSS_POINT_DATA_OUTPUT_TYPE");
-
-  FOUR_C_ASSERT_ALWAYS(
-      gauss_point_data_output_type_ == Inpar::Solid::GaussPointDataOutputType::none,
-      "Gauss point output not yet implemented on micro scale.");
-
-  if (output_stress_strain_)
+  if (!singleHomogenizationOnly)
   {
-    // If stress / strain data should be output, check that the relevant parameters in the --IO
-    // section are set.
-    const Teuchos::ParameterList& io_parameter_list = Global::Problem::instance()->io_params();
-    iostress_ =
-        Teuchos::getIntegralValue<Inpar::Solid::StressType>(io_parameter_list, "STRUCT_STRESS");
-    iostrain_ =
-        Teuchos::getIntegralValue<Inpar::Solid::StrainType>(io_parameter_list, "STRUCT_STRAIN");
-    ioplstrain_ =
-        Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_PLASTIC_STRAIN");
+    // -------------------------------------------------------------------
+    // create a solver
+    // -------------------------------------------------------------------
+    // get the solver number used for structural solver
+    const int linsolvernumber = sdyn_micro.get<int>("LINEAR_SOLVER");
+    // check if the structural solver has a valid solver number
+    FOUR_C_ASSERT_ALWAYS(linsolvernumber != (-1),
+        "No linear solver defined for structural field. Please set LINEAR_SOLVER in STRUCTURAL "
+        "DYNAMIC to a valid number!");
+
+    solver_ = std::make_shared<Core::LinAlg::Solver>(
+        Global::Problem::instance(microdisnum_)->solver_params(linsolvernumber),
+        discret_->get_comm(), Global::Problem::instance()->solver_params_callback(),
+        Teuchos::getIntegralValue<Core::IO::Verbositylevel>(
+            Global::Problem::instance()->io_params(), "VERBOSITY"));
+    compute_null_space_if_necessary(*discret_, solver_->params());
+
+    auto pred = Teuchos::getIntegralValue<Inpar::Solid::PredEnum>(sdyn_micro, "PREDICT");
+    pred_ = pred;
+    combdisifres_ =
+        Teuchos::getIntegralValue<Inpar::Solid::BinaryOp>(sdyn_micro, "NORMCOMBI_RESFDISP");
+    normtypedisi_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_DISP");
+    normtypefres_ = Teuchos::getIntegralValue<Inpar::Solid::ConvNorm>(sdyn_micro, "NORM_RESF");
+    auto iternorm = Teuchos::getIntegralValue<Inpar::Solid::VectorNorm>(sdyn_micro, "ITERNORM");
+    iternorm_ = iternorm;
+
+    dt_ = sdyn_macro.get<double>("TIMESTEP");
+    // broadcast important data that must be consistent on macro and micro scale (master and
+    // supporting procs)
+    Core::Communication::broadcast(&dt_, 1, 0, discret_->get_comm());
+    time_ = 0.0;
+    timen_ = time_ + dt_;
+    step_ = 0;
+    stepn_ = step_ + 1;
+    numstep_ = sdyn_macro.get<int>("NUMSTEP");
+    maxiter_ = sdyn_micro.get<int>("MAXITER");
+    numiter_ = -1;
+
+    tolfres_ = sdyn_micro.get<double>("TOLRES");
+    toldisi_ = sdyn_micro.get<double>("TOLDISP");
+
+    restart_ = Global::Problem::instance()->restart();
+    restart_every_ = sdyn_macro.get<int>("RESTARTEVERY");
+
+    // i/o options should be read from the corresponding micro-file
+    results_every_ = Global::Problem::instance(microdisnum_)
+                         ->io_params()
+                         .sublist("RUNTIME VTK OUTPUT")
+                         .get<int>("INTERVAL_STEPS");
+
+    const Teuchos::ParameterList& ioflags = Global::Problem::instance(microdisnum_)->io_params();
+    printscreen_ = (ioflags.get<int>("STDOUTEVERY"));
+
+    const Teuchos::ParameterList& visualization_output_paramslist =
+        Global::Problem::instance(microdisnum_)
+            ->io_params()
+            .sublist("RUNTIME VTK OUTPUT")
+            .sublist("STRUCTURE");
+    output_displacement_state_ = visualization_output_paramslist.get<bool>("DISPLACEMENT");
+    output_element_owner_ = visualization_output_paramslist.get<bool>("ELEMENT_OWNER");
+    output_element_material_id_ = visualization_output_paramslist.get<bool>("ELEMENT_MAT_ID");
+    output_stress_strain_ = visualization_output_paramslist.get<bool>("STRESS_STRAIN");
+    gauss_point_data_output_type_ =
+        Teuchos::getIntegralValue<Inpar::Solid::GaussPointDataOutputType>(
+            visualization_output_paramslist, "GAUSS_POINT_DATA_OUTPUT_TYPE");
 
     FOUR_C_ASSERT_ALWAYS(
-        iostress_ != Inpar::Solid::stress_none or iostrain_ != Inpar::Solid::strain_none,
-        "If stress / strain runtime output is required, one or two of the flags STRUCT_STRAIN / "
-        "STRUCT_STRESS in the --IO section has to be activated.");
+        gauss_point_data_output_type_ == Inpar::Solid::GaussPointDataOutputType::none,
+        "Gauss point output not yet implemented on micro scale.");
+
+    if (output_stress_strain_)
+    {
+      // If stress / strain data should be output, check that the relevant parameters in the --IO
+      // section are set.
+      const Teuchos::ParameterList& io_parameter_list = Global::Problem::instance()->io_params();
+      iostress_ =
+          Teuchos::getIntegralValue<Inpar::Solid::StressType>(io_parameter_list, "STRUCT_STRESS");
+      iostrain_ =
+          Teuchos::getIntegralValue<Inpar::Solid::StrainType>(io_parameter_list, "STRUCT_STRAIN");
+      ioplstrain_ =
+          Teuchos::getIntegralValue<Inpar::Solid::StrainType>(ioflags, "STRUCT_PLASTIC_STRAIN");
+
+      FOUR_C_ASSERT_ALWAYS(
+          iostress_ != Inpar::Solid::stress_none or iostrain_ != Inpar::Solid::strain_none,
+          "If stress / strain runtime output is required, one or two of the flags STRUCT_STRAIN / "
+          "STRUCT_STRESS in the --IO section has to be activated.");
+    }
+    else
+    {
+      iostress_ = Inpar::Solid::StressType::stress_none;
+      iostrain_ = Inpar::Solid::StrainType::strain_none;
+      ioplstrain_ = Inpar::Solid::StrainType::strain_none;
+    }
+
+    isadapttol_ = (sdyn_micro.get<bool>("ADAPTCONV"));
+    adaptolbetter_ = sdyn_micro.get<double>("ADAPTCONV_BETTER");
+
+    // broadcast important data that must be consistent on macro and micro scale (master and
+    // supporting procs)
+    Core::Communication::broadcast(&numstep_, 1, 0, discret_->get_comm());
+    Core::Communication::broadcast(&restart_, 1, 0, discret_->get_comm());
+    Core::Communication::broadcast(&restart_every_, 1, 0, discret_->get_comm());
   }
   else
   {
-    iostress_ = Inpar::Solid::StressType::stress_none;
-    iostrain_ = Inpar::Solid::StrainType::strain_none;
-    ioplstrain_ = Inpar::Solid::StrainType::strain_none;
+    // The time is requ. for runtime output
+    time_ = 0.0;
   }
-
-  isadapttol_ = (sdyn_micro.get<bool>("ADAPTCONV"));
-  adaptolbetter_ = sdyn_micro.get<double>("ADAPTCONV_BETTER");
-
-  // broadcast important data that must be consistent on macro and micro scale (master and
-  // supporting procs)
-  Core::Communication::broadcast(&numstep_, 1, 0, discret_->get_comm());
-  Core::Communication::broadcast(&restart_, 1, 0, discret_->get_comm());
-  Core::Communication::broadcast(&restart_every_, 1, 0, discret_->get_comm());
-
   // -------------------------------------------------------------------
   // get a vector layout from the discretization to construct matching
   // vectors and matrices
@@ -301,6 +312,12 @@ void MultiScale::MicroStatic::predictor(const Core::LinAlg::Matrix<3, 3>* defgrd
     FOUR_C_THROW("requested predictor not implemented on the micro-scale");
 }
 
+void MultiScale::MicroStatic::import_freact(
+    const std::shared_ptr<Core::LinAlg::Vector<double>>& freact)
+{
+  // Import reaction forces of prescribed DOFs
+  freactn_->import(*freact, *importp_, Core::LinAlg::CombineMode::insert);
+}
 
 /*----------------------------------------------------------------------*
  |  do predictor step (public)                               mwgee 03/07|
@@ -1017,8 +1034,29 @@ void MultiScale::MicroStatic::clear_state()
 
 void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* stress,
     Core::LinAlg::Matrix<6, 6>* cmat, const Core::LinAlg::Matrix<3, 3>* defgrd,
-    const bool mod_newton, bool& build_stiff)
+    const bool mod_newton, bool& build_stiff, double time, double call_counter)
 {
+  std::filesystem::path current_dir = std::filesystem::current_path();
+
+  std::string filename_defgrad = "defgrad.txt";
+  std::filesystem::path filePath_defgrad = current_dir / filename_defgrad;
+
+  std::string filename_freact = "freact.txt";
+  std::filesystem::path filePath_freact = current_dir / filename_freact;
+
+  std::ofstream toggle_file("/home/a11bmofr/10-exp/576/dirich_toggle.txt");
+  {
+    const auto vals = dirichtoggle_->local_values_as_span();
+    for (std::size_t i = 0; i < vals.size(); ++i) toggle_file << vals[i] << '\n';
+  }
+  toggle_file.close();
+
+  std::ofstream Xp_file("/home/a11bmofr/10-exp/576/Xp.txt");
+  {
+    const auto vals = material_coords_boundary_nodes_->local_values_as_span();
+    for (std::size_t i = 0; i < vals.size(); ++i) Xp_file << vals[i] << '\n';
+  }
+  Xp_file.close();
   // determine macroscopic parameters via averaging (homogenization) of
   // microscopic features according to Kouznetsova, Miehe etc.
   // this was implemented against the background of serial usage
@@ -1043,7 +1081,7 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
   // inertial forces (which simplifies matters significantly) whereas
   // the calling macroscopic material routine demands a second
   // Piola-Kirchhoff stress tensor.
-
+  V0_ = 1.0;
   // IMPORTANT: the RVE has to be centered around (0,0,0), otherwise
   // modifications of this approach are necessary.
 
@@ -1210,6 +1248,108 @@ void MultiScale::MicroStatic::static_homogenization(Core::LinAlg::Matrix<6, 1>* 
       // Piola-Kirchhoff stresses to Green-Lagrange strains.
 
       convert_mat(cmatpf, F_inv, *stress, *cmat);
+
+      macro_cmat_ = Core::LinAlg::Matrix(*cmat);
+
+      std::cout << "\n================================================================\n";
+      std::cout << "\n======  STATIC HOMOGENIZATION OUTPUT SUMMARY : =================\n";
+      std::cout << "\n================================================================\n";
+
+      std::cout << " ============ r-P (stress) ====== \n";
+      P.print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-PK2 (stress) ====== \n";
+      stress->print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-cmat (tangent) ====== \n";
+      cmat->print(std::cout);
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      std::cout << " ============ r-cmatpf (tangent-transformed) ====== \n";
+      std::cout << "\n=======EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE=====\n";
+      // cmatpf.Print(std::cout);
+      std::filesystem::path filePath_Fij = current_dir / "Fij.txt";
+      std::filesystem::path filePath_Aij = current_dir / "Aij.txt";
+      std::filesystem::path filePath_Sij = current_dir / "Si.txt";
+      std::filesystem::path filePath_Pij = current_dir / "Pij.txt";
+      std::filesystem::path filePath_Cijkl = current_dir / "Cijkl.txt";
+      std::cout << "Writing summary of homogenization quantities for time: " << time << " \n";
+      std::cout << "File written to: " << current_dir << std::endl;
+
+      // const char* filePath = "/home/a11bmofr/10-exp/510/value_from_statichomogen.txt";
+      std::filesystem::path filePath = current_dir / "value_from_statichomogen.txt";
+      const char* filePathCan = "/home/a11bmofr/10-exp/510/cann_F_P.txt";
+
+      std::ofstream file_Fij(filePath_Fij, std::ios::app);      // Open in append mode
+      std::ofstream file_Pij(filePath_Pij, std::ios::app);      // Open in append mode
+      std::ofstream file_Sij(filePath_Sij, std::ios::app);      // Open in append mode
+      std::ofstream file_Aij(filePath_Aij, std::ios::app);      // Open in append mode
+      std::ofstream file_Cijkl(filePath_Cijkl, std::ios::app);  // Open in append mode
+
+      std::ofstream file(filePath, std::ios::app);         // Open in append mode
+      std::ofstream can_file(filePathCan, std::ios::app);  // Open in append mode
+      auto x = defgrd->data()[0];
+      if (file.is_open())
+      {
+        file << P(0, 0) << ";" << P(1, 1) << ";" << stress[0](0) << ";" << stress[0](1) << ";"
+             << cmat[0](0, 0) << ";" << cmat[0](1, 1) << ";" << cmatpf.get_vector(0).get_values()[0]
+             << ";" << cmatpf.get_vector(1).get_values()[1] << ";" << x << "\n";
+        file.close();
+      }
+      std::stringstream p_stream;
+      std::stringstream s_stream;
+      std::stringstream a_stream;
+      std::stringstream f_stream;
+      std::stringstream c_stream;
+
+      if (can_file.is_open())
+      {
+        for (int i = 0; i < 3; i++)
+        {
+          for (int j = 0; j < 3; j++)
+          {
+            f_stream << defgrd->data()[3 * i + j] << ";";
+            p_stream << P(i, j) << ";";
+            a_stream << cmatpf.get_vector(j).get_values()[i] << ";";
+          }
+        }
+        can_file << p_stream.str() << f_stream.str() << "\n";
+        file.close();
+      }
+      // Todo: Keep this as only output. not here
+      if (file_Fij.is_open() and file_Pij.is_open() and file_Sij.is_open() and file_Aij.is_open())
+      {
+        file_Fij << time << ";" << f_stream.str() << "\n";
+        file_Pij << time << ";" << p_stream.str() << "\n";
+        file_Aij << time << ";" << a_stream.str() << "\n";
+      }
+      else
+      {
+        FOUR_C_THROW("Error opening file Fij/Pij");
+      }
+
+      // Todo:
+      if (file_Cijkl.is_open())
+      {
+        for (int i = 0; i < 6; i++)
+        {
+          s_stream << stress[0](i) << ";";
+          for (int j = 0; j < 6; j++)
+          {
+            c_stream << cmat[0](i, j) << ";";
+          }
+        }
+        file_Sij << time << ";" << s_stream.str() << "\n";
+        file_Cijkl << time << ";" << c_stream.str() << "\n";
+      }
+      else
+      {
+        FOUR_C_THROW("Error opening file Cijkl");
+      }
+      file_Fij.close();
+      file_Pij.close();
+      file_Sij.close();
+      file_Aij.close();
+      file_Cijkl.close();
     }
 
     // after having constructed the stiffness matrix, this need not be
