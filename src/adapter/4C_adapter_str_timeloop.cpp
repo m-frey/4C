@@ -9,12 +9,18 @@
 
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
+#include "4C_linalg_sparsematrix.hpp"
+#include "4C_solver_nonlin_nox_problem.hpp"
+#include "4C_stru_multi_microstatic.hpp"
+#include "4C_structure_new_model_evaluator_generic.hpp"
 
+#include <boost/math/special_functions/math_fwd.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
 FOUR_C_NAMESPACE_OPEN
 
-
+std::shared_ptr<Core::LinAlg::SparseMatrix> global_fullstiff = nullptr;
+;
 /*----------------------------------------------------------------------*/
 /*----------------------------------------------------------------------*/
 int Adapter::StructureTimeLoop::integrate()

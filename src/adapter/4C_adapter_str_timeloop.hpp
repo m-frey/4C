@@ -14,6 +14,7 @@
 
 FOUR_C_NAMESPACE_OPEN
 
+extern std::shared_ptr<Core::LinAlg::SparseMatrix> global_fullstiff;  // Declare globally
 namespace Adapter
 {
   /*! \brief Time loop for stuctural simulations

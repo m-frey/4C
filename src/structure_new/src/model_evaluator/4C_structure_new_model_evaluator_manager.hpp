@@ -79,7 +79,7 @@ namespace Solid
    public:
     using Map = std::map<Inpar::Solid::ModelType, std::shared_ptr<Solid::ModelEvaluator::Generic>>;
     using Vector = std::vector<std::shared_ptr<Solid::ModelEvaluator::Generic>>;
-
+    int counter_ = 0;
     //! constructor
     ModelEvaluatorManager();
 
@@ -215,6 +215,7 @@ namespace Solid
         const std::vector<Inpar::Solid::ModelType>* without_these_models) const;
 
 
+    void increment_counter() { counter_++; }
     /** \brief Assembly of all jacobian contributions
      *
      *  \param timefac_np           (in) : time integration factor for the current contribution

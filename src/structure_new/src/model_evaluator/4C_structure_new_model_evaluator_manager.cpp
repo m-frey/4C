@@ -7,17 +7,22 @@
 
 #include "4C_structure_new_model_evaluator_manager.hpp"
 
+#include "4C_adapter_str_timeloop.hpp"
+#include "4C_adapter_str_wrapper.hpp"
+#include "4C_comm_mpi_utils.hpp"
 #include "4C_linalg_blocksparsematrix.hpp"  // debugging
 #include "4C_linalg_sparseoperator.hpp"
 #include "4C_linalg_vector.hpp"
+#include "4C_solver_nonlin_nox_floating_point_exception.hpp"
 #include "4C_structure_new_integrator.hpp"
 #include "4C_structure_new_model_evaluator_data.hpp"
 #include "4C_structure_new_model_evaluator_factory.hpp"
+#include "4C_structure_new_model_evaluator_generic.hpp"
 #include "4C_structure_new_model_evaluator_structure.hpp"
 #include "4C_structure_new_timint_base.hpp"
+#include "4C_structure_new_utils.hpp"
 #include "4C_utils_enum.hpp"
 #include "4C_utils_exceptions.hpp"
-
 FOUR_C_NAMESPACE_OPEN
 
 /*----------------------------------------------------------------------------*
@@ -35,6 +40,7 @@ Solid::ModelEvaluatorManager::ModelEvaluatorManager()
       timint_ptr_(nullptr)
 {
   // empty constructor
+  std::vector<Core::LinAlg::SparseMatrix> list_Kdd;
 }
 
 /*----------------------------------------------------------------------------*
@@ -176,7 +182,21 @@ void Solid::ModelEvaluatorManager::assemble_jacobian(bool& ok, const Vector& me_
   for (const auto& cit : me_vec)
     // if one model evaluator failed, skip the remaining ones and return false
     ok = (ok ? cit->assemble_jacobian(jac, timefac_np) : false);
+
+  // How can this be done without global var.
+  Core::LinAlg::SparseMatrix* stiff_ptr = dynamic_cast<Core::LinAlg::SparseMatrix*>(&jac);
+
+  if (stiff_ptr)
+  {
+    global_fullstiff = std::make_shared<Core::LinAlg::SparseMatrix>(*stiff_ptr);
+
+    // auto K_dd_full = stiff_ptr->epetra_matrix();
+  }
+
+  const_cast<Solid::ModelEvaluatorManager*>(this)->counter_++;
+  // >>>>>> Output the assembled jacobian
 }
+
 
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
