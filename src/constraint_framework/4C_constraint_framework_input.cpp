@@ -9,6 +9,7 @@
 
 #include "4C_fem_condition_definition.hpp"
 #include "4C_io_input_spec_builders.hpp"
+#include "4C_linalg_tensor.hpp"
 
 FOUR_C_NAMESPACE_OPEN
 
@@ -25,10 +26,15 @@ std::vector<Core::IO::InputSpec> Constraints::valid_parameters()
 
   spec.push_back(group("CONSTRAINT",
       {parameter<EnforcementStrategy>(
-           "CONSTRAINT_ENFORCEMENT", {.description = "Type of constraint enforcement"}),
+           "CONSTRAINT_ENFORCEMENT", {.description = "Type of constraint enforcement",
+                                         .default_value = EnforcementStrategy::penalty}),
 
           parameter<double>("PENALTY_PARAM",
-              {.description = "Value of the penalty parameter", .default_value = 1e5})},
+              {.description = "Value of the penalty parameter", .default_value = 1e5}),
+
+          // Optional user-provided macro deformation gradient (full 3x3 tensor)
+          parameter<Core::LinAlg::Tensor<double, 3, 3>>(
+              "F_MACRO", {.description = "User-provided macro deformation gradient tensor"})},
       {.required = false}));
 
   /*----------------------------------------------------------------------*/
