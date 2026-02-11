@@ -9,7 +9,6 @@
 
 #include "4C_global_data.hpp"
 #include "4C_inpar_structure.hpp"
-#include "4C_io_input_field.hpp"
 #include "4C_linalg_tensor.hpp"
 
 #include <boost/math/special_functions/math_fwd.hpp>
@@ -23,20 +22,16 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> global_fullstiff = nullptr;
 /*----------------------------------------------------------------------*/
 int Adapter::StructureTimeLoop::integrate()
 {
-  // Print optional user-provided deformation gradient once, if present
+  // Print optional user-provided macro deformation gradient once, if present
   {
     static bool defgrad_printed = false;
     if (!defgrad_printed)
     {
-      const auto& sdyn = Global::Problem::instance()->structural_dynamic_params();
-      if (sdyn.isParameter("DEFGRAD"))
+      const auto& constraint = Global::Problem::instance()->constraint_params();
+      if (constraint.isParameter("F_MACRO"))
       {
-        const auto defgrad_field =
-            sdyn.get<Core::IO::InterpolatedInputField<Core::LinAlg::Tensor<double, 3, 3>>>(
-                "DEFGRAD");
-        const std::array<double, 3> xi{0.0, 0.0, 0.0};
-        const auto defgrad = defgrad_field.interpolate(0, xi, "DEFGRAD");
-        std::cout << "STRUCTURAL DYNAMIC/DEFGRAD:" << std::endl;
+        const auto defgrad = constraint.get<Core::LinAlg::Tensor<double, 3, 3>>("F_MACRO");
+        std::cout << "CONSTRAINT/F_MACRO:" << std::endl;
         for (int i = 0; i < 3; ++i)
         {
           std::cout << "  ";
