@@ -106,8 +106,14 @@ namespace MultiScale
     /*!
 \brief Import externally calculated reaction forces
 
-*/
+    */
     void import_freact(const std::shared_ptr<Core::LinAlg::Vector<double>>& freact);
+
+    /*!
+    \brief Import externally calculated stiffness matrix
+
+*/
+    void import_stiff(const std::shared_ptr<Core::LinAlg::SparseMatrix>& stiff);
 
     /*!
     \brief Predictor step

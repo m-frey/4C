@@ -319,6 +319,13 @@ void MultiScale::MicroStatic::import_freact(
   freactn_->import(*freact, *importp_, Core::LinAlg::CombineMode::insert);
 }
 
+void MultiScale::MicroStatic::import_stiff(const std::shared_ptr<Core::LinAlg::SparseMatrix>& stiff)
+{
+  FOUR_C_ASSERT_ALWAYS(stiff != nullptr, "Cannot import a null stiffness matrix.");
+  FOUR_C_ASSERT_ALWAYS(stiff_ != nullptr, "Micro-scale stiffness matrix is not initialized.");
+  *stiff_ = *stiff;
+}
+
 /*----------------------------------------------------------------------*
  |  do predictor step (public)                               mwgee 03/07|
  *----------------------------------------------------------------------*/
