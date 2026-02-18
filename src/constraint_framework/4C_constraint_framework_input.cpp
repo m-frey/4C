@@ -25,16 +25,19 @@ std::vector<Core::IO::InputSpec> Constraints::valid_parameters()
   /* parameters for constraint model */
 
   spec.push_back(group("CONSTRAINT",
-      {parameter<EnforcementStrategy>(
-           "CONSTRAINT_ENFORCEMENT", {.description = "Type of constraint enforcement",
-                                         .default_value = EnforcementStrategy::penalty}),
+      {
+          parameter<EnforcementStrategy>(
+              "CONSTRAINT_ENFORCEMENT", {.description = "Type of constraint enforcement",
+                                            .default_value = EnforcementStrategy::penalty}),
 
           parameter<double>("PENALTY_PARAM",
               {.description = "Value of the penalty parameter", .default_value = 1e5}),
 
-          // Optional user-provided macro deformation gradient (full 3x3 tensor)
+          // User-provided macro deformation gradient (full 3x3 tensor)
           parameter<Core::LinAlg::Tensor<double, 3, 3>>(
-              "F_MACRO", {.description = "User-provided macro deformation gradient tensor"})},
+              "F_MACRO", {.description = "User-provided macro deformation gradient tensor",
+                             .default_value = Core::LinAlg::Tensor<double, 3, 3>{}}),
+      },
       {.required = false}));
 
   /*----------------------------------------------------------------------*/

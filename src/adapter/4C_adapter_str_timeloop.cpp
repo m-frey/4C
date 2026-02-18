@@ -17,6 +17,8 @@
 #include <boost/math/special_functions/math_fwd.hpp>
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
+#include <optional>
+
 FOUR_C_NAMESPACE_OPEN
 
 std::shared_ptr<Core::LinAlg::SparseMatrix> global_fullstiff = nullptr;
@@ -25,25 +27,34 @@ std::shared_ptr<Core::LinAlg::SparseMatrix> global_fullstiff = nullptr;
 /*----------------------------------------------------------------------*/
 int Adapter::StructureTimeLoop::integrate()
 {
+  const auto& global_params = Global::Problem::instance()->parameters();
+  const Core::LinAlg::Tensor<double, 3, 3> default_f_macro{};
+  std::optional<Core::LinAlg::Tensor<double, 3, 3>> f_macro = std::nullopt;
+  if (global_params.isSublist("CONSTRAINT"))
+  {
+    const auto& constraint = Global::Problem::instance()->constraint_params();
+    if (constraint.isParameter("F_MACRO"))
+    {
+      f_macro = constraint.get<Core::LinAlg::Tensor<double, 3, 3>>("F_MACRO");
+    }
+  }
+  const bool has_non_default_f_macro = f_macro.has_value() and (*f_macro != default_f_macro);
+
   // Print optional user-provided macro deformation gradient once, if present
   {
     static bool defgrad_printed = false;
-    if (!defgrad_printed)
+    if (!defgrad_printed and has_non_default_f_macro)
     {
-      const auto& constraint = Global::Problem::instance()->constraint_params();
-      if (constraint.isParameter("F_MACRO"))
+      const auto& defgrad = *f_macro;
+      std::cout << "CONSTRAINT/F_MACRO:" << std::endl;
+      for (int i = 0; i < 3; ++i)
       {
-        const auto defgrad = constraint.get<Core::LinAlg::Tensor<double, 3, 3>>("F_MACRO");
-        std::cout << "CONSTRAINT/F_MACRO:" << std::endl;
-        for (int i = 0; i < 3; ++i)
+        std::cout << "  ";
+        for (int j = 0; j < 3; ++j)
         {
-          std::cout << "  ";
-          for (int j = 0; j < 3; ++j)
-          {
-            std::cout << defgrad(i, j) << (j < 2 ? " " : "");
-          }
-          std::cout << std::endl;
+          std::cout << defgrad(i, j) << (j < 2 ? " " : "");
         }
+        std::cout << std::endl;
       }
       defgrad_printed = true;
     }
@@ -81,160 +92,164 @@ int Adapter::StructureTimeLoop::integrate()
       pre_update();
       update();
       post_update();
-      /*  =========================================================================================
-       *              STATIC HOMOGENIZAITON
-       *  =========================================================================================
-       */
+      if (has_non_default_f_macro)
       {
-        auto problem = Global::Problem::instance();
-        auto discret_ = problem->get_dis("structure");
-        const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
-        auto stiff_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, 81, true, true);
-        auto dt_ = 0.;
-        auto timen_ = 1.;
+        /*  =========================================================================================
+         *              STATIC HOMOGENIZAITON
+         *  =========================================================================================
+         */
+        {
+          auto problem = Global::Problem::instance();
+          auto discret_ = problem->get_dis("structure");
+          const Core::LinAlg::Map* dofrowmap = discret_->dof_row_map();
+          auto stiff_ = std::make_shared<Core::LinAlg::SparseMatrix>(*dofrowmap, 81, true, true);
+          auto dt_ = 0.;
+          auto timen_ = 1.;
 
+          auto dispn_ = dispn();
+          std::shared_ptr<Core::LinAlg::Vector<double>> disn_ =
+              std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
+          std::shared_ptr<Core::LinAlg::Vector<double>> disi_ =
+              std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
+          std::shared_ptr<Core::LinAlg::Vector<double>> fint_ =
+              std::make_shared<Core::LinAlg::Vector<double>>(*freact());
+          std::shared_ptr<Core::LinAlg::Vector<double>> fintn_ =
+              std::make_shared<Core::LinAlg::Vector<double>>(*freact());
+          fintn_->put_scalar(0.0);
+          disn_->put_scalar(0.0);
+
+          //---------------------------- compute internal forces and stiffness
+          // zero out stiffness
+          stiff_->zero();
+          // create the parameters for the discretization
+          Teuchos::ParameterList p;
+          // action for elements
+          p.set("action", "calc_struct_nlnstiff");
+          // other parameters that might be needed by the elements
+          p.set("total time", timen_);
+          p.set("delta time", dt_);
+          // set vector values needed by elements
+          discret_->clear_state();
+          // we do not need to scale disi_ here with 1-alphaf (cf. strugenalpha), since
+          // everything on the microscale "lives" at the pseudo generalized midpoint
+          // -> we solve our quasi-static problem there and only update data to the "end"
+          // of the time step after having finished a macroscopic dt
+          discret_->set_state("residual displacement", *disi_);
+          discret_->set_state("displacement", *disn_);
+
+          // std::cout << "\ndisi_ (residual displacement:) " << disi_-> << std::endl;
+          // std::cout << "\ndisn_ (displacement:) " << *disn_ << std::endl;
+
+
+          fintn_->put_scalar(0.0);  // initialise internal force vector
+          discret_->evaluate(p, stiff_, nullptr, fintn_, nullptr, nullptr);
+
+          // std::cout << "\nFINT (AFTER evaluate NEWTIMINT) = " << *fintn_ << std::endl;
+          // std::cout << "\nstiff_ (AFTER evaluate NEWTIMINT)" << std::endl;
+          // stiff_->epetra_matrix()->Print(std::cout);
+          // Core::LinAlg::print_matrix_in_matlab_format("stiff_in_nti", *stiff_->epetra_matrix(),
+          // true);
+          discret_->clear_state();
+        }
         auto dispn_ = dispn();
-        std::shared_ptr<Core::LinAlg::Vector<double>> disn_ =
-            std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
-        std::shared_ptr<Core::LinAlg::Vector<double>> disi_ =
-            std::make_shared<Core::LinAlg::Vector<double>>(*dispn_);
-        std::shared_ptr<Core::LinAlg::Vector<double>> fint_ =
-            std::make_shared<Core::LinAlg::Vector<double>>(*freact());
-        std::shared_ptr<Core::LinAlg::Vector<double>> fintn_ =
-            std::make_shared<Core::LinAlg::Vector<double>>(*freact());
-        fintn_->put_scalar(0.0);
-        disn_->put_scalar(0.0);
+        // std::cout << "====== dispn is: (NEW TIMEINT) =====\n" << *dispn_;
 
-        //---------------------------- compute internal forces and stiffness
-        // zero out stiffness
-        stiff_->zero();
-        // create the parameters for the discretization
-        Teuchos::ParameterList p;
-        // action for elements
-        p.set("action", "calc_struct_nlnstiff");
-        // other parameters that might be needed by the elements
-        p.set("total time", timen_);
-        p.set("delta time", dt_);
-        // set vector values needed by elements
-        discret_->clear_state();
-        // we do not need to scale disi_ here with 1-alphaf (cf. strugenalpha), since
-        // everything on the microscale "lives" at the pseudo generalized midpoint
-        // -> we solve our quasi-static problem there and only update data to the "end"
-        // of the time step after having finished a macroscopic dt
-        discret_->set_state("residual displacement", *disi_);
-        discret_->set_state("displacement", *disn_);
+        auto fr = freact();
+        // std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
 
-        // std::cout << "\ndisi_ (residual displacement:) " << disi_-> << std::endl;
-        // std::cout << "\ndisn_ (displacement:) " << *disn_ << std::endl;
+        // static homogen. as OUTPUT:
+        auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
+        // MicroStatic_->import_test_freat();
+        MicroStatic_->import_freact(freact());
 
 
-        fintn_->put_scalar(0.0);  // initialise internal force vector
-        discret_->evaluate(p, stiff_, nullptr, fintn_, nullptr, nullptr);
+        // Get System Matrix:
+        auto K_dd_full = global_fullstiff;
+        // auto K_dd = system_matrix(); THIS IS THE WRONG ONE
+        // auto K_dd_ep = K_dd->epetra_matrix();
+        //  Core::LinAlg::print_matrix_in_matlab_format(
+        //      "Kfullnti" + std::to_string(time_old()) + ".txt", *K_dd_full->epetra_matrix(),
+        //      true);
+        // Core::LinAlg::print_matrix_in_matlab_format(
+        //"jac" + std::to_string(time_old()) + ".txt", *K_dd->epetra_matrix(), true);
+        if (K_dd_full != nullptr) MicroStatic_->import_stiff(K_dd_full);
+        //      Core::LinAlg::print_matrix_in_matlab_format(
+        //          "K_sys_full_" + std::to_string(time_old()) + ".txt",
+        //          *K_dd_full->epetra_matrix(), true);
+        // Use reaktion force from minimal test just to check everything works as planed:
+        // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
 
-        // std::cout << "\nFINT (AFTER evaluate NEWTIMINT) = " << *fintn_ << std::endl;
-        // std::cout << "\nstiff_ (AFTER evaluate NEWTIMINT)" << std::endl;
-        // stiff_->epetra_matrix()->Print(std::cout);
-        // Core::LinAlg::print_matrix_in_matlab_format("stiff_in_nti", *stiff_->epetra_matrix(),
-        // true);
-        discret_->clear_state();
+
+        // overwrite reaction force with result from the
+        // MicroStatic_->freactn_ = freact_from_micro;
+
+        Core::LinAlg::Matrix<6, 1> stress(Core::LinAlg::Initialization::zero);
+        Core::LinAlg::Matrix<6, 6> cmat(Core::LinAlg::Initialization::zero);
+
+        // ===================================================
+        Core::LinAlg::Matrix<3, 3> defgrd(Core::LinAlg::Initialization::zero);
+
+        // defgrd(0, 0) = 0.977655;
+        // defgrd(0, 1) = 2.61724e-17;
+        // defgrd(0, 2) = 1.49806e-17;
+        // defgrd(1, 0) = 2.32727e-17;
+        // defgrd(1, 1) = 0.977655;
+        // defgrd(1, 2) = 2.63945e-17;
+        // defgrd(2, 0) = -1.11022e-16;
+        // defgrd(2, 1) = 0;
+        // defgrd(2, 2) = 1.09394;
+
+        // from 520 Fe2 results
+        // Fs = F + df * beta
+
+        const Teuchos::ParameterList& sdyn_macro =
+            Global::Problem::instance()->structural_dynamic_params();
+
+        auto maxtime = sdyn_macro.get<double>("MAXTIME");
+        std::cout << "\nmaxtime used for scaling: " << maxtime << " \n";
+        double endTime = 1.0;
+        double beta = (1. - time_old() / endTime);
+        std::cout << "\n beta used for scaling:" << beta << " \n";
+
+
+        const double F_11 = sdyn_macro.get<double>("F11");
+        const double F_12 = sdyn_macro.get<double>("F12");
+        const double F_13 = sdyn_macro.get<double>("F13");
+        const double F_21 = sdyn_macro.get<double>("F21");
+        const double F_22 = sdyn_macro.get<double>("F22");
+        const double F_23 = sdyn_macro.get<double>("F23");
+        const double F_31 = sdyn_macro.get<double>("F31");
+        const double F_32 = sdyn_macro.get<double>("F32");
+        const double F_33 = sdyn_macro.get<double>("F33");
+
+        defgrd(0, 0) = F_11 + beta * (1. - F_11);
+        defgrd(0, 1) = F_12 - beta * (F_12);
+        defgrd(0, 2) = F_13 - beta * (F_13);
+        defgrd(1, 0) = F_21 - beta * (F_21);
+        defgrd(1, 1) = F_22 + beta * (1. - F_22);
+        defgrd(1, 2) = F_23 - beta * (F_23);
+        defgrd(2, 0) = F_31 - beta * (F_31);
+        defgrd(2, 1) = F_32 - beta * (F_32);
+        defgrd(2, 2) = F_33 + beta * (1. - F_33);
+
+        // ==== scale def grad:
+
+        // Get defgrad from this section
+        auto dt = sdyn_macro.get<double>("TIMESTEP");
+
+        std::cout << "\n time now, it is: time()-dt =  " << time() - dt << "\n";
+        std::cout << "\n time now, it is: structure time_old =  " << structure_->time_old() << "\n";
+        std::cout << "\n time now, it is: structure time =  " << structure_->time() << "\n";
+        // =====================================================
+        const bool mod_newton = false;
+        bool build_stiff = true;
+        MicroStatic_->static_homogenization(
+            &stress, &cmat, &defgrd, mod_newton, build_stiff, time_old());
+        /*  =========================================================================================
+         *              STATIC HOMOGENIZAITON END
+         *  =========================================================================================
+         */
       }
-      auto dispn_ = dispn();
-      // std::cout << "====== dispn is: (NEW TIMEINT) =====\n" << *dispn_;
-
-      auto fr = freact();
-      // std::cout << "\n====== freact is (IN NEW TIMINT) ========\n" << *fr;
-
-      // static homogen. as OUTPUT:
-      auto MicroStatic_ = Teuchos::rcp(new MultiScale::MicroStatic(0, 1.0, true));
-      // MicroStatic_->import_test_freat();
-      MicroStatic_->import_freact(freact());
-
-
-      // Get System Matrix:
-      auto K_dd_full = global_fullstiff;
-      // auto K_dd = system_matrix(); THIS IS THE WRONG ONE
-      // auto K_dd_ep = K_dd->epetra_matrix();
-      //  Core::LinAlg::print_matrix_in_matlab_format(
-      //      "Kfullnti" + std::to_string(time_old()) + ".txt", *K_dd_full->epetra_matrix(), true);
-      // Core::LinAlg::print_matrix_in_matlab_format(
-      //"jac" + std::to_string(time_old()) + ".txt", *K_dd->epetra_matrix(), true);
-      if (K_dd_full != nullptr) MicroStatic_->import_stiff(K_dd_full);
-      //      Core::LinAlg::print_matrix_in_matlab_format(
-      //          "K_sys_full_" + std::to_string(time_old()) + ".txt", *K_dd_full->epetra_matrix(),
-      //          true);
-      // Use reaktion force from minimal test just to check everything works as planed:
-      // std::cout << "\n Manul def frext \n" << *MicroStatic_->freactn_;
-
-
-      // overwrite reaction force with result from the
-      // MicroStatic_->freactn_ = freact_from_micro;
-
-      Core::LinAlg::Matrix<6, 1> stress(Core::LinAlg::Initialization::zero);
-      Core::LinAlg::Matrix<6, 6> cmat(Core::LinAlg::Initialization::zero);
-
-      // ===================================================
-      Core::LinAlg::Matrix<3, 3> defgrd(Core::LinAlg::Initialization::zero);
-
-      // defgrd(0, 0) = 0.977655;
-      // defgrd(0, 1) = 2.61724e-17;
-      // defgrd(0, 2) = 1.49806e-17;
-      // defgrd(1, 0) = 2.32727e-17;
-      // defgrd(1, 1) = 0.977655;
-      // defgrd(1, 2) = 2.63945e-17;
-      // defgrd(2, 0) = -1.11022e-16;
-      // defgrd(2, 1) = 0;
-      // defgrd(2, 2) = 1.09394;
-
-      // from 520 Fe2 results
-      // Fs = F + df * beta
-
-      const Teuchos::ParameterList& sdyn_macro =
-          Global::Problem::instance()->structural_dynamic_params();
-
-      auto maxtime = sdyn_macro.get<double>("MAXTIME");
-      std::cout << "\nmaxtime used for scaling: " << maxtime << " \n";
-      double endTime = 1.0;
-      double beta = (1. - time_old() / endTime);
-      std::cout << "\n beta used for scaling:" << beta << " \n";
-
-
-      const double F_11 = sdyn_macro.get<double>("F11");
-      const double F_12 = sdyn_macro.get<double>("F12");
-      const double F_13 = sdyn_macro.get<double>("F13");
-      const double F_21 = sdyn_macro.get<double>("F21");
-      const double F_22 = sdyn_macro.get<double>("F22");
-      const double F_23 = sdyn_macro.get<double>("F23");
-      const double F_31 = sdyn_macro.get<double>("F31");
-      const double F_32 = sdyn_macro.get<double>("F32");
-      const double F_33 = sdyn_macro.get<double>("F33");
-
-      defgrd(0, 0) = F_11 + beta * (1. - F_11);
-      defgrd(0, 1) = F_12 - beta * (F_12);
-      defgrd(0, 2) = F_13 - beta * (F_13);
-      defgrd(1, 0) = F_21 - beta * (F_21);
-      defgrd(1, 1) = F_22 + beta * (1. - F_22);
-      defgrd(1, 2) = F_23 - beta * (F_23);
-      defgrd(2, 0) = F_31 - beta * (F_31);
-      defgrd(2, 1) = F_32 - beta * (F_32);
-      defgrd(2, 2) = F_33 + beta * (1. - F_33);
-
-      // ==== scale def grad:
-
-      // Get defgrad from this section
-      auto dt = sdyn_macro.get<double>("TIMESTEP");
-
-      std::cout << "\n time now, it is: time()-dt =  " << time() - dt << "\n";
-      std::cout << "\n time now, it is: structure time_old =  " << structure_->time_old() << "\n";
-      std::cout << "\n time now, it is: structure time =  " << structure_->time() << "\n";
-      // =====================================================
-      const bool mod_newton = false;
-      bool build_stiff = true;
-      MicroStatic_->static_homogenization(
-          &stress, &cmat, &defgrd, mod_newton, build_stiff, time_old());
-      /*  =========================================================================================
-       *              STATIC HOMOGENIZAITON END
-       *  =========================================================================================
-       */
       // write output
       output();
       post_output();
