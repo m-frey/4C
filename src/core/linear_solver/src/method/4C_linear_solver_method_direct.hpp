@@ -38,11 +38,27 @@ namespace Core::LinearSolver
         std::shared_ptr<Core::LinAlg::MultiVector<double>> b, const bool refactor, const bool reset,
         std::shared_ptr<Core::LinAlg::LinearSystemProjector> projector = nullptr) override;
 
+    ~DirectSolver() override;
+
     int solve(Core::LinAlg::MultiVector<double>& x) override;
 
     [[nodiscard]] bool is_factored() const { return factored_; }
 
    private:
+    /*! \brief Solve the current system with SuperLU_DIST called directly
+     *
+     * The Amesos2 SuperLU_DIST wrapper in the supported Trilinos versions returns wrong
+     * solutions for ill-conditioned systems (its hand-written pre-ordering/equilibration
+     * pipeline ignores the user parameters and hard-codes iterative refinement to off).
+     * This routine therefore drives SuperLU_DIST through its native pdgssvx interface:
+     * the system is redistributed to the contiguous block-row layout SuperLU_DIST
+     * requires and solved with equilibration, MC64 row permutation and double-precision
+     * iterative refinement enabled.
+     *
+     * @param x solution vector (same layout as the right-hand side)
+     */
+    int solve_superlu_dist(Core::LinAlg::MultiVector<double>& x);
+
     //! type/implementation of Amesos solver to be used
     const Core::LinearSolver::SolverType solvertype_;
 
@@ -57,6 +73,10 @@ namespace Core::LinearSolver
 
     //! an abstract Amesos2 solver that can be any of the concrete implementations
     Teuchos::RCP<Amesos2::Solver<Epetra_CrsMatrix, Epetra_MultiVector>> solver_;
+
+    //! opaque handle to the SuperLU_DIST process grid (created on first use, see
+    //! solve_superlu_dist())
+    void* superlu_grid_ = nullptr;
 
     /*! \brief A projector applied before solving the linear systems
      *
