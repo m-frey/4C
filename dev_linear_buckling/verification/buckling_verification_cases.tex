@@ -1,0 +1,641 @@
+\documentclass[11pt,a4paper]{report}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,array,multirow,tabularx}
+\usepackage{siunitx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{xurl}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\titleformat{\chapter}[hang]{\Large\bfseries}{\thechapter}{1em}{}
+\titlespacing*{\chapter}{0pt}{0pt}{1.2em}
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black}
+\sisetup{group-separator={\,},group-minimum-digits=5}
+\setlist{nosep,leftmargin=1.5em}
+
+\newcommand{\bu}{\bm{u}}
+\newcommand{\K}{\mathbf{K}}
+\newcommand{\KT}{\mathbf{K}_T}
+\newcommand{\KD}{\mathbf{K}_\Delta}
+\newcommand{\refval}[1]{\textbf{#1}}
+
+\title{\textbf{Verification Test Cases for the\\Linear Buckling Analysis in 4C}\\[0.5em]
+\large Three-dimensional solid elements}
+\author{Linear buckling feature, branch \texttt{dev-linear-buckling} of \texttt{m-frey/4C}}
+\date{25 September 2026}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+%======================================================================
+\chapter*{Overview}
+\addcontentsline{toc}{chapter}{Overview}
+%======================================================================
+
+This document defines four test cases for verifying the linear buckling
+analysis of 3D solid elements in 4C. For each case it gives the setup,
+the derivation of the reference solution, and the accepted deviation.
+All numbers to be matched are collected in Chapter~\ref{ch:results}.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright}X>{\raggedright}X>{\raggedright\arraybackslash}X@{}}
+\toprule
+Case & Structure & Reference & Tests mainly \\
+\midrule
+A & Simply supported plate, uniaxial compression & analytical (Kirchhoff, Mindlin) & plate modes, several $(m,n)$, Neumann load \\
+B & Cantilever column, rectangular section & analytical (Euler, Timoshenko) & mode ordering, preload path \\
+C & 3D beam-like solid, clamped--pinned & published benchmark (FEniCSx) & code-to-code, identical mesh \\
+D & Periodic square-lattice cell & plausibility + exact identities & periodic BCs, Dirichlet load \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\paragraph{Eigenvalue problem and notation.}
+All cases solve
+\begin{equation}
+  \bigl(\KT(\bu_0) + \lambda\,\KD\bigr)\,\bm{\phi} = \bm{0},
+  \label{eq:evp}
+\end{equation}
+where $\bu_0$ is the base state ($\bu_0=\bm{0}$ unless stated otherwise),
+$\KD$ is the differential (initial-stress) stiffness due to a reference load
+pattern $P_\text{ref}$, and the critical load is $P_\text{cr} = P_\text{pre} +
+\lambda P_\text{ref}$. Positive $\lambda$ means the load acts as given; negative
+$\lambda$ means it acts in reverse.
+
+\paragraph{Differential stiffness.}
+4C uses the classical geometric stiffness $\KD = \K_\sigma(\Delta\bm{S})$ of
+the perturbation stress only, as Abaqus \texttt{*BUCKLE} and the FEniCSx
+benchmark (Case~C) do (design choice D1 of the implementation plan).
+A finite-difference tangent,
+$\KD \approx [\KT(\bu_0+\varepsilon\Delta\bu)-\KT(\bu_0)]/\varepsilon$, would
+additionally contain the initial-displacement term (linear in
+$\nabla\Delta\bu$). Its relative effect on $\lambda_i$ is of the order of the
+pre-buckling strain at the critical point,
+$\varepsilon_{\text{pre},i}\approx\sigma_{\text{cr},i}/E$. This is why that
+variant was rejected. The tolerances below apply to the classical
+$\KD$.
+
+\paragraph{Mode identification and comparison.}
+\begin{itemize}
+\item Modes are identified by their dominant displacement component and by
+  counting half-waves along the edges or axes.
+\item The shape is compared with the analytical mode $\bm{\phi}^\text{an}$ at
+  the nodes of the mid-surface or neutral axis, using the modal assurance
+  criterion
+  $\text{MAC} = (\bm{\phi}^\text{T}\bm{\phi}^\text{an})^2 /
+  \bigl((\bm{\phi}^\text{T}\bm{\phi})(\bm{\phi}^{\text{an}\,\text{T}}\bm{\phi}^\text{an})\bigr)$.
+\item For degenerate eigenvalues (multiplicity $>1$), only the eigenvalue is
+  compared, together with the fact that the mode lies in the analytical
+  eigenspace.
+\end{itemize}
+
+\paragraph{Units.}
+Cases A, B and D use \si{mm}, \si{N} and \si{MPa}. Case C uses the
+dimensionless units of the published benchmark.
+
+%======================================================================
+\chapter{Case A -- Simply supported plate under uniaxial compression}
+\label{ch:plate}
+%======================================================================
+
+\section{Problem definition}
+
+A flat rectangular plate of length $a$ (in $x$), width $b$ (in $y$) and
+thickness $t$ (in $z$) is simply supported on all four edges and loaded by a
+uniform compressive membrane force $N_x$ per unit width on the edges $x=0$
+and $x=a$. The plate is modelled as a 3D solid; no periodic boundary
+conditions are used.
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Quantity & A1 (square) & A2 (long) \\
+\midrule
+Length $a$ & \SI{100}{mm} & \SI{300}{mm} \\
+Width $b$ & \SI{100}{mm} & \SI{100}{mm} \\
+Thickness $t$ & \SI{1}{mm} & \SI{1}{mm} \\
+Young's modulus $E$ & \multicolumn{2}{l}{\SI{210000}{MPa}} \\
+Poisson's ratio $\nu$ & \multicolumn{2}{l}{0.3} \\
+Material & \multicolumn{2}{l}{St.\ Venant--Kirchhoff, \texttt{KINEM nonlinear}} \\
+Reference load $N_\text{ref}$ & \multicolumn{2}{l}{\SI{1}{N/mm}, i.e.\ traction $N_\text{ref}/t = \SI{1}{MPa}$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Configuration A1 has well-separated eigenvalues and is the primary test.
+Configuration A2 has several closely spaced eigenvalues with different
+half-wave numbers $m$. It tests that the eigensolver finds the correct
+eigenvalues and returns them in the correct order.
+
+\section{3D model and boundary conditions}
+
+A simple support in the 3D solid has to act on the mid-surface
+$z = t/2$ only. Fixing $w$ on the whole edge face would also restrain the
+rotation, i.e.\ partially clamp the edge.
+
+\begin{enumerate}
+\item \textbf{Out-of-plane support:} $u_z = 0$ on the four mid-surface edge
+  lines ($z=t/2$ at $x=0$, $x=a$, $y=0$, $y=b$). This requires a node layer at
+  $z=t/2$, i.e.\ an even number of element layers, or quadratic elements with
+  mid-thickness nodes.
+\item \textbf{Loading:} uniform dead surface traction $p = N_\text{ref}/t$ on
+  both loaded faces $x=0$ and $x=a$, acting inward (compression). The load is
+  self-equilibrated.
+\item \textbf{Remaining in-plane rigid-body modes (statically determinate):}
+  \begin{itemize}
+  \item $u_x = 0$ and $u_y=0$ at point $P_1=(0,0,t/2)$;
+  \item $u_y = 0$ at point $P_2=(a,0,t/2)$.
+  \end{itemize}
+  The pre-buckling state is then exactly
+  $\sigma_{xx} = -N_x/t$, $\sigma_{yy}=\sigma_{xy}=0$. The unloaded edges are
+  free in their plane and Poisson expansion is unrestrained.
+\item \textbf{Elements:} \texttt{SOLID HEX20} or \texttt{HEX27} with at least
+  2 layers through the thickness, or \texttt{HEX8} with EAS
+  (\texttt{eas\_full}) and at least 2 layers. Plain \texttt{HEX8} locks
+  severely at $b/t=100$ and must not be used.
+\item \textbf{Recommended in-plane mesh:} at least 8 quadratic elements per
+  half-wave. That is $20\times20$ for A1 and $60\times20$ for A2 (the
+  highest listed mode of A2 has $m=8$).
+\end{enumerate}
+
+\section{Analytical solution (Kirchhoff plate theory)}
+
+The bending stiffness is $D = E t^3/[12(1-\nu^2)]$. Linearized about the
+membrane state $N_x$ (compression positive), the governing equation is
+\begin{equation}
+  D\,\nabla^4 w + N_x\,\frac{\partial^2 w}{\partial x^2} = 0 .
+\end{equation}
+The simply supported boundary conditions ($w=0$ and $M_n=0$ on all edges) are
+satisfied exactly by the Navier ansatz
+$w_{mn} = \sin(m\pi x/a)\,\sin(n\pi y/b)$ with $m,n\in\mathbb{N}$.
+Substituting it gives
+\begin{equation}
+  N_{x,mn} = \frac{\pi^2 D}{b^2}\,k_{mn},
+  \qquad
+  k_{mn} = \left(\frac{m b}{a} + \frac{n^2 a}{m b}\right)^2 .
+  \label{eq:plate}
+\end{equation}
+The eigenvalues are $\lambda_{mn}=N_{x,mn}/N_\text{ref}$, and $w_{mn}$ is the
+corresponding buckling mode, i.e.\ the out-of-plane displacement of the
+mid-surface. For $a/b=1$ the minimum is $k_{11}=4$. For $a/b=3$ it is
+$k_{31}=4$, with the neighbours $k_{41}=4.340$, $k_{21}=4.694$, $k_{51}=5.138$.
+
+\paragraph{Transverse-shear correction (Mindlin plate theory).}
+A 3D solid includes transverse-shear flexibility. For a simply supported
+Mindlin plate, the exact relation to the Kirchhoff value is
+\begin{equation}
+  N^{\text{M}}_{x,mn} = \frac{N_{x,mn}}{1 + D\,\kappa_{mn}^2/(\kappa G t)},
+  \qquad \kappa_{mn}^2 = \Bigl(\frac{m\pi}{a}\Bigr)^2+\Bigl(\frac{n\pi}{b}\Bigr)^2,
+  \quad G=\frac{E}{2(1+\nu)},\ \kappa=\tfrac56 .
+\end{equation}
+For $b/t=100$ the correction is below \SI{0.6}{\percent} for all listed
+modes. The Mindlin value is the primary reference for the 3D model.
+
+\section{Expected deviations of the 3D model}
+\begin{itemize}
+\item Remaining 3D effects (thickness change, edge zones of the line support)
+  are of order $(t/b)^2$ and negligible.
+\item The discretization error of conforming displacement elements usually
+  overestimates $\lambda$. It decreases under mesh refinement and dominates
+  the total deviation.
+\item Pre-buckling strain: $\varepsilon_\text{pre}\approx 75.9/210000
+  \approx 3.6\times10^{-4}$ (mode 1), so geometric nonlinearity of the
+  pre-buckling state is negligible.
+\end{itemize}
+
+%======================================================================
+\chapter{Case B -- Cantilever column with rectangular cross-section}
+\label{ch:column}
+%======================================================================
+
+\section{Problem definition}
+
+A straight prismatic bar of length $L$ with rectangular cross-section
+$b\times h$ ($b$ in $y$, $h$ in $z$, $h<b$) is clamped at $x=0$ and loaded at
+$x=L$ by a dead axial compressive force $P$.
+
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Length $L$ & \SI{100}{mm} \\
+Cross-section $b\times h$ & \SI{3}{mm} $\times$ \SI{2}{mm}, $A=\SI{6}{mm^2}$ \\
+$E$, $\nu$ & \SI{210000}{MPa}, 0.3 \\
+Material & St.\ Venant--Kirchhoff, \texttt{KINEM nonlinear} \\
+Reference load $P_\text{ref}$ & \SI{1}{N}, i.e.\ traction $1/6$~\si{MPa} on the end face \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{3D model and boundary conditions}
+\begin{itemize}
+\item \textbf{Clamped end:} $u_x=u_y=u_z=0$ on all nodes of the face $x=0$.
+  This also blocks Poisson contraction there, a local effect of order
+  $h/L$ on the stress field that is negligible for $\lambda$ at $L/h=50$.
+\item \textbf{Free end:} uniform dead traction $-P_\text{ref}/A$ in $x$
+  direction on the face $x=L$. There are no further boundary conditions.
+\item \textbf{Elements and mesh:} \texttt{SOLID HEX20} or \texttt{HEX27} with
+  at least $2\times3$ elements in the cross-section and at least 50 along
+  $L$. Alternatively \texttt{HEX8} with EAS, $4\times6\times100$.
+\end{itemize}
+
+\section{Analytical solution}
+
+\paragraph{Euler--Bernoulli.}
+From $EI\,v'''' + P\,v'' = 0$ with $v(0)=v'(0)=0$ and $M(L)=Q(L)=0$:
+\begin{equation}
+  P_{E,n} = \frac{(2n-1)^2\pi^2 EI}{4L^2},\qquad
+  v_n(x) = 1-\cos\frac{(2n-1)\pi x}{2L},\qquad n=1,2,\dots
+\end{equation}
+This holds separately for both bending axes:
+\begin{itemize}
+\item weak axis, deflection in $z$: $I_y = b h^3/12 = \SI{2}{mm^4}$;
+\item strong axis, deflection in $y$: $I_z = h b^3/12 = \SI{4.5}{mm^4}$.
+\end{itemize}
+The ratio $I_z/I_y = 2.25$ interleaves the two families, so the mode order
+tests that modes are ordered correctly.
+Torsional buckling of a solid rectangular section is far above the listed
+range.
+
+\paragraph{Shear correction (Engesser).}
+\begin{equation}
+  P_{T,n} = \frac{P_{E,n}}{1+P_{E,n}/(\kappa G A)},\qquad
+  \kappa = \frac{10(1+\nu)}{12+11\nu} = 0.8497 \ \text{(Cowper)} .
+\end{equation}
+The Haringx variant differs from Engesser by less than \SI{0.02}{\percent}
+for all listed modes. $P_{T,n}$ is the primary reference.
+
+\section{Additional check: preloaded base state}
+\begin{enumerate}
+\item Run the nonlinear static preload with $P_\text{pre} = 0.5\,P_{T,1}$
+  (e.g.\ \texttt{NUMSTEP: 5}).
+\item Then run the buckling step with the same $P_\text{ref}$.
+\end{enumerate}
+The pre-buckling path of this structure is practically linear
+($\varepsilon_\text{pre}<10^{-4}$), so the result must satisfy
+$P_\text{pre} + \lambda_1^{\text{(pre)}}P_\text{ref} = \lambda_1^{(0)}P_\text{ref}$
+up to $\approx 10^{-3}$ relative.
+
+%======================================================================
+\chapter{Case C -- Published benchmark: FEniCSx 3D solid}
+\label{ch:fenics}
+%======================================================================
+
+\section{Source}
+J.~Bleyer, M.~Pierre, \emph{Linear Buckling Analysis of a 3D solid},
+Numerical Tours of Computational Mechanics with FEniCSx,
+\url{https://bleyerj.github.io/comet-fenicsx/tours/eigenvalue_problems/buckling_3d_solid/buckling_3d_solid.html}.
+The source is in \url{https://github.com/bleyerj/comet-fenicsx},
+directory \texttt{tours/eigenvalue\_problems/buckling\_3d\_solid},
+commit \texttt{5d06010c} (4 March 2025).
+
+The tour solves exactly the classical problem $\K\bm{\phi} = -\lambda\K_\sigma\bm{\phi}$
+with 3D solid elements, where $\K$ is the linear stiffness and $\K_\sigma$ is
+built from the linear pre-stress $\bm{\sigma}_0$.
+
+\section{Problem definition (identical to the benchmark)}
+\begin{center}
+\begin{tabular}{@{}ll@{}}
+\toprule
+Domain & box $[0,L]\times[0,b]\times[0,h]$, $L=1$, $b=0.01$ (in $y$), $h=0.03$ (in $z$) \\
+Material & isotropic linear elastic, $E=10^3$, $\nu=0.3$ \\
+Mesh & $50\times5\times5$ hexahedra, 2nd-order Lagrange ($Q_2$, 27 nodes) $\Rightarrow$ \texttt{SOLID HEX27} \\
+DOFs & 36\,663 (including constrained DOFs) \\
+Left end $x=0$ & fully clamped: $u_x=u_y=u_z=0$ on all face nodes \\
+Right end $x=L$ & $u_y=u_z=0$ on all face nodes, $u_x$ free \\
+Load & dead traction $\bm{t}=(-N_0,0,0)$ on the face $x=L$, $N_0=1$ (a stress) \\
+Output & eigenvalue $\lambda$ = critical \emph{axial stress}; critical force $F_\text{cr}=\lambda\,b\,h$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Replicating it in 4C.}
+\begin{itemize}
+\item Generate the same structured $50\times5\times5$ \texttt{HEX27} mesh.
+\item Boundary conditions:
+  \begin{itemize}
+  \item \texttt{DESIGN SURF DIRICH} on $x=0$ with \texttt{ONOFF [1,1,1]};
+  \item \texttt{DESIGN SURF DIRICH} on $x=L$ with \texttt{ONOFF [0,1,1]};
+  \item \texttt{DESIGN SURF NEUMANN} on $x=L$ with \texttt{VAL [-1,0,0]}.
+  \end{itemize}
+\item Material \texttt{MAT\_Struct\_StVenantKirchhoff} with $E=1000$,
+  $\nu=0.3$, \texttt{KINEM nonlinear}, base state $\bu_0=\bm{0}$.
+\end{itemize}
+At $\bu_0=\bm{0}$ the 4C tangent $\KT(\bm{0})$ equals the benchmark's $\K$.
+
+\section{Analytical solution (beam theory, as in the tour)}
+Clamped--pinned Euler column: $EI\,v''''+F v''=0$ with $v(0)=v'(0)=0$ and
+$v(L)=v''(L)=0$. This leads to the transcendental equation
+\begin{equation}
+  \tan\alpha_n = \alpha_n,\qquad F_{\text{cr},n} = \alpha_n^2\,\frac{EI}{L^2},
+  \qquad \lambda_n = \frac{F_{\text{cr},n}}{b\,h} .
+\end{equation}
+The exact roots are
+$\alpha_n/\pi = 1.430297,\ 2.459024,\ 3.470890,\ 4.477409,\ 5.481537,\ 6.484387$.
+The two bending axes have
+\begin{itemize}
+\item weak axis, deflection in $y$: $I = h b^3/12$;
+\item strong axis, deflection in $z$: $I = b h^3/12 = 9\times$ weak.
+\end{itemize}
+The shear-corrected (Engesser) values are listed as well.
+
+\paragraph{Two remarks on the published tour.}
+\begin{enumerate}
+\item The tour quotes $\alpha_2\approx2.4509\pi$. The correct root of
+  $\tan\alpha=\alpha$ is $\alpha_2 = 2.459024\pi$.
+\item The tour compares FE mode $i$ with the $i$-th weak-axis beam mode for
+  all $i$. FE modes 4 and 8, however, are strong-axis modes (dominant $u_z$),
+  so from mode 4 on the tour's comparison pairs the wrong modes. The table in
+  Chapter~\ref{ch:results} assigns each mode to its beam counterpart.
+\end{enumerate}
+
+\section{Numerical reference values}
+The FE reference values were produced by running the unmodified benchmark
+script. The only changes were an API update for dolfinx~0.9 (\texttt{.vector}
+$\to$ \texttt{.x.petsc\_vec}) and additional output. The run used the
+official container \texttt{dolfinx/dolfinx:v0.9.0} with SLEPc Krylov--Schur,
+shift-invert $\sigma=0.01$, tolerance $10^{-12}$.
+\begin{itemize}
+\item The published mesh $50\times5\times5$ (36\,663 DOFs) is the primary
+  reference for the code-to-code comparison.
+\item The refined mesh $80\times8\times8$ (139\,587 DOFs) is the converged
+  reference.
+\item A $100\times5\times5$ run (72\,963 DOFs) differs from $80\times8\times8$
+  by at most $4\times10^{-4}$ relative for modes 1--8, which indicates the
+  remaining discretization error.
+\item A $100\times10\times10$ run exceeded the 16\,GB of memory available and
+  was not used.
+\end{itemize}
+The FE eigenvalues are not monotone under refinement, and mode~1 slightly
+increases. This is expected, because the discrete pre-stress enters
+$\K_\sigma$, so conforming FE eigenvalues are not bounds here. All eight
+modes have at least \SI{99.8}{\percent} of their norm in the dominant
+component ($u_y$ weak axis, $u_z$ strong axis).
+
+%======================================================================
+\chapter{Case D -- Periodic square-lattice cell (plausibility)}
+\label{ch:periodic}
+%======================================================================
+
+\section{Purpose}
+There is no clean analytical solution for a buckling problem that 4C's
+periodic RVE conditions can represent: they require periodicity on all six
+faces of a cuboid cell. This case is therefore checked by
+\begin{enumerate}
+\item exact identities that any correct implementation must satisfy, and
+\item a closed-form frame-theory estimate as a plausibility band.
+\end{enumerate}
+It is the only case that exercises periodic boundary conditions and a
+Dirichlet (prescribed macro-strain) perturbation load.
+
+\section{Problem definition}
+\begin{itemize}
+\item \textbf{Unit cell:} $[0,L]\times[0,L]\times[0,d]$ with $L=\SI{20}{mm}$,
+  $d=\SI{1}{mm}$, and a square hole $[w/2,\,L-w/2]^2$ through the full depth,
+  $w=\SI{1}{mm}$. The material thus forms a square frame whose struts of total
+  thickness $w$ are split in two halves across the periodic faces. Tiling
+  gives an infinite square lattice with strut spacing $L$ and strut
+  thickness $w$.
+\item \textbf{Material:} St.\ Venant--Kirchhoff, $E=\SI{210000}{MPa}$,
+  $\nu=0.3$.
+\item \textbf{Periodic BCs:} \texttt{DESIGN SURF PERIODIC RVE 3D} \texttt{BOUNDARY CONDITIONS} on all six faces, penalty enforcement
+  (\texttt{CONSTRAINT\_ENFORCEMENT: penalty}), automatic corner detection.
+\item \textbf{Macro loading via the corner reference nodes} (N1 at the
+  origin; N2, N4, N5 the corners in $+x$, $+y$, $+z$):
+  \begin{itemize}
+  \item N1: all components fixed;
+  \item N2: $u_x = -\varepsilon_\text{ref}L$ with $\varepsilon_\text{ref}=10^{-3}$
+    through a time function, $u_y=u_z=0$;
+  \item N4: $u_x=u_z=0$, $u_y$ free;
+  \item N5: $u_x=u_y=0$, $u_z$ free.
+  \end{itemize}
+  This gives uniaxial macro compression with free lateral contraction and no
+  macro shear or rotation.
+\item \textbf{Two model sizes:}
+  \begin{itemize}
+  \item D1: the $1\times1\times1$ cell;
+  \item D2: a $2\times2\times1$ super-cell with the identical mesh in every
+    sub-cell.
+  \end{itemize}
+\item \textbf{Mesh:} structured, \texttt{HEX20}/\texttt{HEX27}, at least
+  2 elements across each half-strut, at least 40 along a strut, 1 element in
+  $z$.
+\item \textbf{Serial run:} 4C's RVE conditions are not implemented in
+  parallel.
+\end{itemize}
+
+\section{Frame-theory estimate}
+The struts in $x$ carry the whole load with strain $\varepsilon$. The struts
+in $y$ are unloaded. Periodicity in $z$ with free uniform $\varepsilon_{zz}$
+makes bending effectively plane strain, i.e.\ the bending stiffness is
+$E w^3/[12(1-\nu^2)]$ per unit depth. The joints are treated as rigid blocks
+of size $w$, so the free strut length is $\ell=L-w$.
+\begin{itemize}
+\item \textbf{D1 (period 1):} all joints rotate equally. The lowest mode is
+  strut buckling between non-rotating joints (clamped--clamped, no sway):
+  \begin{equation}
+    \varepsilon_\text{cr}^{D1} = \frac{4\pi^2 w^2}{12(1-\nu^2)\,\ell^2} .
+  \end{equation}
+\item \textbf{D2 (period 2):} alternating transverse sway of neighbouring
+  joint columns becomes admissible (clamped--guided):
+  \begin{equation}
+    \varepsilon_\text{cr}^{D2} = \frac{\pi^2 w^2}{12(1-\nu^2)\,\ell^2}
+    = \tfrac14\,\varepsilon_\text{cr}^{D1} .
+  \end{equation}
+\end{itemize}
+A periodic Euler--Bernoulli frame FE model (rigid joint zones, 16 elements
+per strut) reproduces both expressions to four significant digits. Its spectrum also
+contains every D1 eigenvalue within the D2 spectrum, which demonstrates
+identity (I1) below. Joint flexibility, shear and 3D effects are not
+included, so this estimate is only a plausibility band.
+
+\section{Exact identities (independent of any reference value)}
+\begin{enumerate}[label=(I\arabic*)]
+\item \textbf{Super-cell containment:} every eigenvalue of D1 appears in the
+  spectrum of D2, possibly with higher multiplicity. The reason is that every
+  1-periodic field is also 2-periodic. Request at least $4\times$ as many
+  modes for D2.
+\item \textbf{Monotonicity:} $\lambda_1^{D2}\le\lambda_1^{D1}$.
+\item \textbf{Symmetry:} loading in $y$ instead of $x$ (swap the roles of N2
+  and N4) gives the same spectrum.
+\item \textbf{Periodicity of modes:} $\bm{\phi}(\bm{x}^+)-\bm{\phi}(\bm{x}^-)$
+  on paired nodes is of the order of the penalty error. It decreases by about
+  $10\times$ when the penalty parameter is increased $10\times$.
+\item \textbf{Linearity in the load:} $\lambda(2\varepsilon_\text{ref}) =
+  \lambda(\varepsilon_\text{ref})/2$ and $\lambda(-\varepsilon_\text{ref})$
+  flips the sign of the whole spectrum.
+\item \textbf{Penalty convergence:} $\lambda_1(\kappa)$ converges as
+  $\kappa\to\infty$. The change from $\kappa$ to $10\kappa$ must be at least
+  $5\times$ smaller than the change from $\kappa/10$ to $\kappa$.
+\end{enumerate}
+
+%======================================================================
+\chapter{Reference results to match}
+\label{ch:results}
+%======================================================================
+
+This chapter collects all numbers and acceptance criteria.
+Relative deviation: $\delta_i = |\lambda_i^\text{4C}-\lambda_i^\text{ref}|/\lambda_i^\text{ref}$.
+The tolerances apply to the recommended meshes and are to be tightened into
+regression values once the 4C results have been verified.
+
+\section{Case A -- simply supported plate}
+
+\subsection*{A1: $a=b=\SI{100}{mm}$, $t=\SI{1}{mm}$, $D=\SI{19230.769}{Nmm}$, $\pi^2D/b^2=\SI{18.980008}{N/mm}$}
+\begin{center}
+\begin{tabular}{@{}ccrrrr@{}}
+\toprule
+Mode & $(m,n)$ & $k_{mn}$ & Kirchhoff $\lambda$ & \refval{Mindlin $\lambda$ (reference)} & Mindlin/Kirchhoff \\
+\midrule
+1 & (1,1) & 4.000000 & 75.920034 & \refval{75.877241} & $-0.056\%$ \\
+2 & (2,1) & 6.250000 & 118.625053 & \refval{118.458034} & $-0.141\%$ \\
+3 & (3,1) & 11.111111 & 210.888983 & \refval{210.295972} & $-0.281\%$ \\
+4 & (2,2) & 16.000000 & 303.680135 & \refval{302.996602} & $-0.225\%$ \\
+5 & (4,1) & 18.062500 & 342.826403 & \refval{341.190800} & $-0.477\%$ \\
+6 & (3,2) & 18.777778 & 356.402381 & \refval{355.100634} & $-0.365\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+$\lambda$ = critical membrane force $N_x$ in \si{N/mm} ($N_\text{ref}=\SI{1}{N/mm}$),
+equivalently the critical stress in \si{MPa} for $t=\SI{1}{mm}$.
+Mode 7 is degenerate: $(1,2)$ and $(4,2)$ both have $k=25$. Do not compare
+modes beyond 6.
+
+\subsection*{A2: $a=\SI{300}{mm}$, $b=\SI{100}{mm}$, $t=\SI{1}{mm}$}
+\begin{center}
+\begin{tabular}{@{}ccrrrr@{}}
+\toprule
+Mode & $(m,n)$ & $k_{mn}$ & Kirchhoff $\lambda$ & \refval{Mindlin $\lambda$ (reference)} & Mindlin/Kirchhoff \\
+\midrule
+1 & (3,1) & 4.000000 & 75.920034 & \refval{75.877241} & $-0.056\%$ \\
+2 & (4,1) & 4.340278 & 82.378509 & \refval{82.314032} & $-0.078\%$ \\
+3 & (2,1) & 4.694444 & 89.100595 & \refval{89.064318} & $-0.041\%$ \\
+4 & (5,1) & 5.137778 & 97.515066 & \refval{97.411294} & $-0.106\%$ \\
+5 & (6,1) & 6.250000 & 118.625053 & \refval{118.458034} & $-0.141\%$ \\
+6 & (7,1) & 7.628118 & 144.781743 & \refval{144.519114} & $-0.181\%$ \\
+7 & (8,1) & 9.251736 & 175.598030 & \refval{175.197311} & $-0.228\%$ \\
+8 & (1,1) & 11.111111 & 210.888983 & \refval{210.822928} & $-0.031\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Acceptance criteria}
+\begin{itemize}
+\item A1 modes 1--3: $\delta_i\le\SI{1}{\percent}$; A1 modes 4--6:
+  $\delta_i\le\SI{2}{\percent}$.
+\item A2 modes 1--8: $\delta_i\le\SI{1.5}{\percent}$, and the order of $(m,n)$
+  must be exactly as listed. The spacing between modes 1 and 2 is only
+  \SI{8.5}{\percent}, so a wrong order indicates an error.
+\item Mode shape: half-wave count $(m,n)$ as listed; MAC $\ge 0.98$ against
+  $\sin(m\pi x/a)\sin(n\pi y/b)$, evaluated with $u_z$ at the mid-surface
+  nodes.
+\item Mesh convergence: $\lambda_1$ decreases monotonically towards the
+  Mindlin value under uniform refinement.
+\item Load reversal: reversing the traction gives $\lambda_i\to-\lambda_i$
+  (relative $10^{-8}$).
+  Doubling the traction halves $\lambda_i$.
+\end{itemize}
+
+\section{Case B -- cantilever column}
+$L=\SI{100}{mm}$, $b\times h=\SI{3}{mm}\times\SI{2}{mm}$; $\lambda$ = critical force in \si{N} ($P_\text{ref}=\SI{1}{N}$).
+\begin{center}
+\begin{tabular}{@{}clcrrr@{}}
+\toprule
+Mode & Axis (deflection) & $n$ & Euler $P_E$ [\si{N}] & \refval{Timoshenko $P_T$ [\si{N}] (reference)} & $P_T/P_E$ \\
+\midrule
+1 & weak ($z$) & 1 & 103.630846 & \refval{103.604771} & $-0.025\%$ \\
+2 & strong ($y$) & 1 & 233.169404 & \refval{233.037442} & $-0.057\%$ \\
+3 & weak ($z$) & 2 & 932.677616 & \refval{930.569806} & $-0.226\%$ \\
+4 & strong ($y$) & 2 & 2098.524636 & \refval{2087.883909} & $-0.507\%$ \\
+5 & weak ($z$) & 3 & 2590.771155 & \refval{2574.572274} & $-0.625\%$ \\
+6 & weak ($z$) & 4 & 5077.911464 & \refval{5016.053142} & $-1.218\%$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection*{Acceptance criteria}
+\begin{itemize}
+\item Modes 1--3: $\delta_i\le\SI{1}{\percent}$; modes 4--6:
+  $\delta_i\le\SI{2}{\percent}$.
+\item The order weak/strong/weak/strong/weak/weak must be exactly as listed.
+  Dominant displacement component: $u_z$ for weak-axis modes, $u_y$ for
+  strong-axis modes.
+\item Mode shape: MAC $\ge 0.98$ against $1-\cos[(2n-1)\pi x/(2L)]$,
+  evaluated along the centroidal axis.
+\item Preload: with $P_\text{pre}=\SI{51.80}{N}$ ($\approx0.5P_{T,1}$),
+  $P_\text{pre}+\lambda_1^{(\text{pre})}\cdot\SI{1}{N}$ matches
+  $\lambda_1^{(0)}$ within $10^{-3}$ relative.
+\end{itemize}
+
+\section{Case C -- FEniCSx benchmark}
+$\lambda$ = critical compressive traction (stress) on the end face; $N_0=1$.
+The FEniCSx columns are the numerical reference; the beam columns are
+analytical plausibility values.
+
+\begin{center}
+\small
+\begin{tabular}{@{}cc c r r r r@{}}
+\toprule
+Mode & Axis & $n$ & \refval{FEniCSx $50{\times}5{\times}5$} & FEniCSx $80{\times}8{\times}8$ & Euler beam & Timoshenko beam \\
+\midrule
+1 & weak ($y$) & 1 & \refval{0.167963169} & 0.168078306 & 0.16825607 & 0.16816949 \\
+2 & weak ($y$) & 2 & \refval{0.496955439} & 0.496866498 & 0.49732930 & 0.49657360 \\
+3 & weak ($y$) & 3 & \refval{0.987888956} & 0.987687419 & 0.99083224 & 0.98783717 \\
+4 & strong ($z$) & 1 & \refval{1.500093336} & 1.500692451 & 1.51430464 & 1.50732006 \\
+5 & weak ($y$) & 4 & \refval{1.642490988} & 1.640922961 & 1.64881509 & 1.64053797 \\
+6 & weak ($y$) & 5 & \refval{2.455332621} & 2.451987909 & 2.47128677 & 2.45273882 \\
+7 & weak ($y$) & 6 & \refval{3.429242204} & 3.421467271 & 3.45824987 & 3.42203704 \\
+8 & strong ($z$) & 2 & \refval{4.392907156} & 4.392598990 & 4.47596370 & 4.41548720 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection*{Acceptance criteria}
+\begin{itemize}
+\item \textbf{Code-to-code (primary):} 4C with \texttt{HEX27},
+  $50\times5\times5$, identical BCs, against FEniCSx $50\times5\times5$:
+  $\delta_i\le10^{-4}$ for modes 1--8. The only allowed difference is the
+  quadrature rule.
+\item Mode identification (dominant component) exactly as listed. The
+  dominant component carries at least \SI{99}{\percent} of the mode norm.
+\item 4C $80\times8\times8$ \texttt{HEX27} against FEniCSx $80\times8\times8$: same tolerances as above. Any finer 4C mesh against FEniCSx $80\times8\times8$: $\delta_i\le10^{-3}$.
+\end{itemize}
+
+\section{Case D -- periodic lattice cell}
+$L=\SI{20}{mm}$, $w=\SI{1}{mm}$, $\ell=L-w=\SI{19}{mm}$, $\varepsilon_\text{ref}=10^{-3}$; $\lambda=\varepsilon_\text{cr}/\varepsilon_\text{ref}$.
+\begin{center}
+\begin{tabular}{@{}llcc@{}}
+\toprule
+Model & Mode type & \multicolumn{2}{c}{Frame estimate $\lambda$} \\
+ & & point joints, $\ell=L$ & \refval{rigid joints, $\ell=L-w$} \\
+\midrule
+D1 ($1\times1\times1$) & clamped--clamped, no sway & 9.0381 & \refval{10.0145} \\
+D2 ($2\times2\times1$) & alternating sway & 2.2595 & \refval{2.5036} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\subsection*{Acceptance criteria}
+\begin{itemize}
+\item \textbf{Identities (hard):}
+  \begin{itemize}
+  \item (I1) every D1 eigenvalue, up to the requested count, is found in the
+    D2 spectrum within $10^{-6}$ relative (eigensolver tolerance);
+  \item (I2) $\lambda_1^{D2}<\lambda_1^{D1}$;
+  \item (I3) $x$- and $y$-loading spectra agree within $10^{-6}$;
+  \item (I4)--(I6) as defined in Chapter~\ref{ch:periodic}.
+  \end{itemize}
+\item \textbf{Plausibility (soft):}
+  \begin{itemize}
+  \item $\lambda_1^{D1}$ and $\lambda_1^{D2}$ within $\pm\SI{15}{\percent}$ of
+    the rigid-joint frame estimate;
+  \item $\lambda_1^{D2}/\lambda_1^{D1}$ between 0.2 and 0.3 (frame theory:
+    0.25);
+  \item D1 mode: $x$-struts buckle with the cell's joints non-rotating;
+    D2 mode: neighbouring joint columns sway in opposite $y$ directions.
+  \end{itemize}
+\end{itemize}
+
+\end{document}
