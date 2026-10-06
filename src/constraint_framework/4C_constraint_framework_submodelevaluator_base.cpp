@@ -72,6 +72,7 @@ void Constraints::SubmodelEvaluator::ConstraintBase::evaluate_coupling_terms(
     for (int i = 0; i < mpc->get_number_of_constraint_equation_objects(); ++i)
       my_row_gids.push_back(mpc->get_first_row_id() + i);
 
+  // ToDo: Add an offset to the constraint dof map.
   n_condition_map_ = std::make_shared<Core::LinAlg::Map>(
       -1, static_cast<int>(my_row_gids.size()), my_row_gids.data(), 0, stiff_ptr_->get_comm());
 
