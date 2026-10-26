@@ -15,15 +15,36 @@ FOUR_C_NAMESPACE_OPEN
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
 void Constraints::SubmodelEvaluator::LinearCoupledEquation::evaluate_equation(
-    Core::LinAlg::SparseMatrix& Q_dL, Core::LinAlg::SparseMatrix& Q_Ld)
+    Core::LinAlg::SparseMatrix& Q_dd, Core::LinAlg::SparseMatrix& Q_dL,
+    Core::LinAlg::SparseMatrix& Q_Ld, Core::LinAlg::Vector<double>& constraint_vector,
+    const Core::LinAlg::Vector<double>& D_np1)
 {
+  // loop over the terms of this equation; each term is one coefficient times one dof,
+  // stored as (coefficient, row id, dof id) with row id = id of the equation
   for (const auto& [coefficient, row_id, dof_id] : equation_data_)
   {
     FOUR_C_ASSERT(Q_Ld.row_map().my_gid(row_id),
         "Constraint equation row {} is not owned by this rank.", row_id);
+    const int dof_lid = D_np1.get_map().lid(dof_id);
+    FOUR_C_ASSERT(dof_lid >= 0, "Displacement of dof {} is not available on this rank.", dof_id);
+
+    // stiffness contribution; the dof row of Q_dL may belong to another rank (FE assembly)
     Q_Ld.assemble(coefficient, row_id, dof_id);
     Q_dL.fe_assemble(coefficient, dof_id, row_id);
+
+    // force contribution: violation of the equation = sum of coefficient * displacement
+    const double constraint_violation = D_np1.get_values()[dof_lid] * coefficient;
+    constraint_vector.sum_into_global_values(1, &constraint_violation, &row_id);
   }
+}
+/*----------------------------------------------------------------------------*
+ *----------------------------------------------------------------------------*/
+std::vector<int> Constraints::SubmodelEvaluator::LinearCoupledEquation::get_dof_gids() const
+{
+  std::vector<int> dof_gids;
+  dof_gids.reserve(equation_data_.size());
+  for (const auto& term : equation_data_) dof_gids.push_back(term.DofId);
+  return dof_gids;
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/

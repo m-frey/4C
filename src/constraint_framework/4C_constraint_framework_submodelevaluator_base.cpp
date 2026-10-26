@@ -20,6 +20,8 @@
 
 #include <Teuchos_StandardParameterEntryValidators.hpp>
 
+#include <set>
+
 FOUR_C_NAMESPACE_OPEN
 
 Constraints::SubmodelEvaluator::ConstraintBase::ConstraintBase()
@@ -74,24 +76,42 @@ void Constraints::SubmodelEvaluator::ConstraintBase::evaluate_coupling_terms(
 
   n_condition_map_ = std::make_shared<Core::LinAlg::Map>(
       -1, static_cast<int>(my_row_gids.size()), my_row_gids.data(), 0, stiff_ptr_->get_comm());
+  FOUR_C_ASSERT(n_condition_map_->unique_gids(), "Constraint equation ids are not unique.");
 
   // initialise all global coupling objects
   constraint_residual_ = std::make_shared<Core::LinAlg::Vector<double>>(*n_condition_map_, true);
   Q_Ld_ = std::make_shared<Core::LinAlg::SparseMatrix>(*n_condition_map_, 4);
-  // FE matrix: the equations assemble into dof rows that may be owned by another rank
+  // FE matrices: an equation may assemble into dof rows owned by another rank
   Q_dL_ = std::make_shared<Core::LinAlg::SparseMatrix>(
       stiff_ptr_->row_map(), 4, true, false, Core::LinAlg::SparseMatrix::FE_MATRIX);
-  Q_dd_ = std::make_shared<Core::LinAlg::SparseMatrix>(stiff_ptr_->row_map(), 0);
+  Q_dd_ = std::make_shared<Core::LinAlg::SparseMatrix>(
+      stiff_ptr_->row_map(), 0, true, false, Core::LinAlg::SparseMatrix::FE_MATRIX);
   Q_dd_->zero();
 
-  std::shared_ptr<const Core::LinAlg::Vector<double>> dis_np = gstate.get_dis_np();
-  for (const auto& obj : constraint_equations_) obj->evaluate_equation(*Q_dL_, *Q_Ld_);
+  // the equations need the displacements of dofs that may be owned by other ranks:
+  // collect those dofs and import their values into an overlapping vector
+  std::set<int> my_dof_gids;
+  for (const auto& mpc : constraint_equations_)
+  {
+    const std::vector<int> dof_gids = mpc->get_dof_gids();
+    my_dof_gids.insert(dof_gids.begin(), dof_gids.end());
+  }
+  const std::vector<int> my_dof_gids_vector(my_dof_gids.begin(), my_dof_gids.end());
+  const Core::LinAlg::Map overlapping_dof_map(-1, static_cast<int>(my_dof_gids_vector.size()),
+      my_dof_gids_vector.data(), 0, stiff_ptr_->get_comm());
+  Core::LinAlg::Vector<double> dis_np_overlapping(overlapping_dof_map, true);
+  Core::LinAlg::export_to(*gstate.get_dis_np(), dis_np_overlapping);
 
+  // Evaluate the Constraint Pairs / equations objects
+  for (const auto& obj : constraint_equations_)
+  {
+    obj->evaluate_equation(*Q_dd_, *Q_dL_, *Q_Ld_, *constraint_residual_, dis_np_overlapping);
+  }
+  Core::IO::cout(Core::IO::debug) << "Evaluated all constraint objects" << Core::IO::endl;
+
+  // Complete
   Q_dd_->complete();
   Q_Ld_->complete(stiff_ptr_->domain_map(), *n_condition_map_);
   Q_dL_->complete(*n_condition_map_, stiff_ptr_->domain_map());
-
-  // constraint residual r_L = Q_Ld * d
-  Q_Ld_->multiply(false, *dis_np, *constraint_residual_);
 }
 FOUR_C_NAMESPACE_CLOSE
