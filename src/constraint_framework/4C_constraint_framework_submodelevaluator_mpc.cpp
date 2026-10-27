@@ -330,12 +330,12 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
   const Core::LinAlg::Map& node_row_map = *discret_ptr_->node_row_map();
   const int num_dim = (rve_dim_ == Constraints::MultiPoint::RveDimension::rve2d) ? 2 : 3;
 
-  // both reference definitions fill these: the nodes (n0, n1, n2, n3) of every periodic relation
-  // u(n0) - u(n1) = u(n2) - u(n3) created on this rank, a label per relation for the output, and
-  // the dofs of nodes that may be owned by other ranks
-  std::vector<std::array<int, 4>> pbc_node_sets;
+  // filled by both reference-point definitions (automatic and manual):
+  // the four nodes of every periodic relation u(n0) - u(n1) = u(n2) - u(n3) created on this rank,
+  // a label per relation for the output, and the dofs of nodes owned by other ranks
+  std::vector<std::array<int, 4>> periodic_relation_nodes;
   std::vector<std::string> pbc_labels;
-  std::map<int, std::array<int, 3>> node_dofs;
+  std::map<int, std::array<int, 3>> gathered_node_dofs;
   std::map<std::string, std::size_t> boundary_node_pair_counts;
 
   switch (rve_ref_type_)
@@ -385,11 +385,10 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
           << "+--------------------------------------------------------------------+"
           << Core::IO::endl;
 
-      // shift each negative-boundary node onto the positive boundary and match it there; the
-      // match is returned to the owner of the negative node, which then creates the relation
-      // the reference end corner of an earlier axis yields the same relation again on a later
-      // axis (e.g. N4 on x- and N2 on y- both couple N3), so it is skipped as a "-" node
-      std::set<int> skipped_minus_gids = {rveCornerNodeIdMap["N1"]};
+      // match "-" nodes (shifted by the reference vector) with "+" nodes across all ranks;
+      // the owner of the "-" node creates the relation. Corners that already got their
+      // relation on an earlier axis are excluded, so no duplicate relation is created across ranks
+      std::set<int> excluded_minus_gids = {rveCornerNodeIdMap["N1"]};
       for (const auto& [axis, end_node] : ref_end_node_map)
       {
         const int ref_end_gid = rveCornerNodeIdMap[end_node];
@@ -398,7 +397,7 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
         std::vector<std::pair<int, Core::GeometricSearch::BoundingVolume>> shifted_negative_nodes;
         for (const int minus_gid : *rveBoundaryNodeIdMap.at(axis + "-"))
         {
-          if (skipped_minus_gids.contains(minus_gid) || !node_row_map.my_gid(minus_gid)) continue;
+          if (excluded_minus_gids.contains(minus_gid) || !node_row_map.my_gid(minus_gid)) continue;
           const auto x = discret_ptr_->g_node(minus_gid)->x();
           Core::LinAlg::Matrix<3, 1, double> target_position(Core::LinAlg::Initialization::zero);
           for (int i = 0; i < num_dim; ++i) target_position(i) = x[i] + reference_vector[axis][i];
@@ -424,32 +423,42 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
         const auto matches = Core::GeometricSearch::global_collision_search(
             positive_nodes, shifted_negative_nodes, comm);
 
-        std::map<int, std::vector<int>> positive_partners;
+        std::map<int, std::vector<int>> partners_of_minus_node;
         for (const auto& match : matches)
-          positive_partners[match.gid_predicate].push_back(match.gid_primitive);
+          partners_of_minus_node[match.gid_predicate].push_back(match.gid_primitive);
 
-        std::string unmatched_gids;
+        // every rank checks its own "-" nodes; the failures are gathered so that all ranks throw
+        std::vector<int> my_unmatched_gids;
+        std::vector<int> my_ambiguous_gids;
         for (const auto& [minus_gid, bounding_volume] : shifted_negative_nodes)
-          if (!positive_partners.contains(minus_gid))
-            unmatched_gids += std::to_string(minus_gid) + " ";
-        FOUR_C_ASSERT_ALWAYS(unmatched_gids.empty(),
-            "Periodic search on the '{}-' boundary found no partner for node(s) {}. "
-            "Check mesh periodicity or POINT_TOLERANCE.",
-            axis, unmatched_gids);
+        {
+          const auto partners = partners_of_minus_node.find(minus_gid);
+          if (partners == partners_of_minus_node.end())
+            my_unmatched_gids.push_back(minus_gid);
+          else if (partners->second.size() != 1)
+            my_ambiguous_gids.push_back(minus_gid);
+        }
+        const auto unmatched_gids = Core::Communication::all_reduce(my_unmatched_gids, comm);
+        const auto ambiguous_gids = Core::Communication::all_reduce(my_ambiguous_gids, comm);
+        auto join_gids = [](const std::vector<int>& gids)
+        {
+          std::string joined;
+          for (const int gid : gids) joined += (joined.empty() ? "" : " ") + std::to_string(gid);
+          return joined;
+        };
+        FOUR_C_ASSERT_ALWAYS(unmatched_gids.empty() && ambiguous_gids.empty(),
+            "Periodic search on the '{}-' boundary failed: no partner for node(s) [{}], more than "
+            "one partner for node(s) [{}]. Check mesh periodicity or POINT_TOLERANCE.",
+            axis, join_gids(unmatched_gids), join_gids(ambiguous_gids));
 
         Core::IO::cout(Core::IO::debug) << axis << "-boundary pairs:" << Core::IO::endl;
 
         std::size_t pair_number = 0;
-        for (const auto& [minus_gid, partners] : positive_partners)
+        for (const auto& [minus_gid, partners] : partners_of_minus_node)
         {
-          FOUR_C_ASSERT_ALWAYS(partners.size() == 1,
-              "Periodic search on the '{}-' boundary found {} partners for node {} "
-              "(expected exactly one). Check mesh periodicity or POINT_TOLERANCE.",
-              axis, partners.size(), minus_gid);
-
-          // u(+) - u(-) = u(ref_end) - u(N1), node order as documented above
+          // u(+) - u(-) = u(ref_end) - u(N1)
           const std::string pair_label = axis + "-pair " + std::to_string(++pair_number);
-          pbc_node_sets.push_back({partners[0], minus_gid, ref_end_gid, ref_base_gid});
+          periodic_relation_nodes.push_back({partners[0], minus_gid, ref_end_gid, ref_base_gid});
           pbc_labels.push_back(pair_label);
 
           Core::IO::cout(Core::IO::debug) << "  " << pair_label << ": u(" << partners[0] << ") - u("
@@ -460,25 +469,25 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
             Core::Communication::sum_all(static_cast<int>(pair_number), comm);
         Core::IO::cout(Core::IO::debug) << Core::IO::endl;
 
-        skipped_minus_gids.insert(ref_end_gid);
+        excluded_minus_gids.insert(ref_end_gid);
       }
 
       // the owner of a "-" node needs the dofs of its "+" partner and of the corner nodes, which
       // may live on other ranks: collect the dofs of all owned "+" and corner nodes on every rank
-      std::map<int, std::array<int, 3>> local_node_dofs;
+      std::map<int, std::array<int, 3>> my_node_dofs;
       auto add_owned_node_dofs = [&](const int node_gid)
       {
         if (!node_row_map.my_gid(node_gid)) return;
         const std::vector<int> dofs = discret_ptr_->dof(discret_ptr_->g_node(node_gid));
         std::array<int, 3> dofs_of_node = {-1, -1, -1};
         for (int i = 0; i < num_dim; ++i) dofs_of_node[i] = dofs[i];
-        local_node_dofs[node_gid] = dofs_of_node;
+        my_node_dofs[node_gid] = dofs_of_node;
       };
       for (const int corner_gid : corner_gids) add_owned_node_dofs(corner_gid);
       for (const auto& [axis, end_node] : ref_end_node_map)
         for (const int plus_gid : *rveBoundaryNodeIdMap.at(axis + "+"))
           add_owned_node_dofs(plus_gid);
-      node_dofs = Core::Communication::all_reduce(local_node_dofs, comm);
+      gathered_node_dofs = Core::Communication::all_reduce(my_node_dofs, comm);
       break;
     }
     case Constraints::MultiPoint::RveReferenceDeformationDefinition::manual:
@@ -503,7 +512,7 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
               rve_ref_node_map_["N1L"]->id(), rve_ref_node_map_["N2"]->id()};
 
           const std::string pair_label = "x-pair " + std::to_string(++x_pair_number);
-          pbc_node_sets.push_back(node_set);
+          periodic_relation_nodes.push_back(node_set);
           pbc_labels.push_back(pair_label);
 
           Core::IO::cout(Core::IO::debug)
@@ -528,7 +537,7 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
               nodeYm, rve_ref_node_map_["N4"]->id(), rve_ref_node_map_["N1B"]->id()};
 
           const std::string pair_label = "y-pair " + std::to_string(++y_pair_number);
-          pbc_node_sets.push_back(node_set);
+          periodic_relation_nodes.push_back(node_set);
           pbc_labels.push_back(pair_label);
 
           Core::IO::cout(Core::IO::debug)
@@ -559,17 +568,17 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
     Core::IO::cout(Core::IO::standard) << Core::IO::endl;
   }
 
+  const int num_candidate_relations =
+      Core::Communication::sum_all(static_cast<int>(periodic_relation_nodes.size()), comm);
   Core::IO::cout(Core::IO::verbose)
-      << "Candidate periodic relations: "
-      << Core::Communication::sum_all(static_cast<int>(pbc_node_sets.size()), comm)
-      << Core::IO::endl;
+      << "Candidate periodic relations: " << num_candidate_relations << Core::IO::endl;
 
   // Ensure no constraint is enforced twice (the automatic search already skips duplicates, the
   // manual definition relies on this check):
   int indx = 0;
   std::map<int, std::vector<int>> idListSet;
 
-  for (const auto& node_set : pbc_node_sets)
+  for (const auto& node_set : periodic_relation_nodes)
   {
     std::vector<int> ids(node_set.begin(), node_set.end());
     std::sort(ids.begin(), ids.end());
@@ -612,32 +621,34 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
   std::sort(idsToRemove.rbegin(), idsToRemove.rend());
   for (int id : idsToRemove)
   {
-    pbc_node_sets.erase(pbc_node_sets.begin() + id);
+    periodic_relation_nodes.erase(periodic_relation_nodes.begin() + id);
     pbc_labels.erase(pbc_labels.begin() + id);
   }
 
+  const int num_removed_duplicates =
+      Core::Communication::sum_all(static_cast<int>(idsToRemove.size()), comm);
+  const int num_unique_relations =
+      Core::Communication::sum_all(static_cast<int>(periodic_relation_nodes.size()), comm);
   Core::IO::cout(Core::IO::verbose)
-      << "Removed duplicate relations: "
-      << Core::Communication::sum_all(static_cast<int>(idsToRemove.size()), comm) << Core::IO::endl;
+      << "Removed duplicate relations: " << num_removed_duplicates << Core::IO::endl;
   Core::IO::cout(Core::IO::standard)
-      << "Unique periodic relations: "
-      << Core::Communication::sum_all(static_cast<int>(pbc_node_sets.size()), comm)
-      << Core::IO::endl;
+      << "Unique periodic relations: " << num_unique_relations << Core::IO::endl;
 
   // every equation needs a unique global id: start counting where the lower ranks stop
-  int num_local_constraints = static_cast<int>(pbc_node_sets.size()) * num_dim;
-  std::vector<int> num_constraints_per_rank(Core::Communication::num_mpi_ranks(comm), 0);
-  Core::Communication::gather_all(&num_local_constraints, num_constraints_per_rank.data(), 1, comm);
-  int mpc_id = 0;
+  int num_my_constraint_equations = static_cast<int>(periodic_relation_nodes.size()) * num_dim;
+  std::vector<int> num_constraint_equations_per_rank(Core::Communication::num_mpi_ranks(comm), 0);
+  Core::Communication::gather_all(
+      &num_my_constraint_equations, num_constraint_equations_per_rank.data(), 1, comm);
+  int equation_id = 0;
   for (int pid = 0; pid < Core::Communication::my_mpi_rank(comm); ++pid)
-    mpc_id += num_constraints_per_rank[pid];
+    equation_id += num_constraint_equations_per_rank[pid];
 
   // dof of a node: looked up directly if this rank owns the node, otherwise from the gathered table
   auto dof_of = [&](const int node_gid, const int dim)
   {
     if (node_row_map.my_gid(node_gid))
       return discret_ptr_->dof(discret_ptr_->g_node(node_gid))[dim];
-    return node_dofs.at(node_gid)[dim];
+    return gathered_node_dofs.at(node_gid)[dim];
   };
 
   Core::IO::cout(Core::IO::verbose)
@@ -648,9 +659,9 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
   // u(n0) - u(n1) - u(n2) + u(n3) = 0
   const std::vector<double> pbc_coefficients = {1., -1., -1., 1.};
   const std::string displacement_components = "xyz";
-  for (std::size_t relation_id = 0; relation_id < pbc_node_sets.size(); ++relation_id)
+  for (std::size_t relation_id = 0; relation_id < periodic_relation_nodes.size(); ++relation_id)
   {
-    const auto& node_set = pbc_node_sets[relation_id];
+    const auto& node_set = periodic_relation_nodes[relation_id];
     Core::IO::cout(Core::IO::debug)
         << "R" << relation_id << " (" << pbc_labels[relation_id] << "): u(" << node_set[0]
         << ") - u(" << node_set[1] << ") = u(" << node_set[2] << ") - u(" << node_set[3] << ")"
@@ -662,23 +673,23 @@ void Constraints::SubmodelEvaluator::RveMultiPointConstraintManager::build_perio
       for (const int node_gid : node_set) pbc_dofs.push_back(dof_of(node_gid, dim));
 
       Core::IO::cout(Core::IO::debug)
-          << "  Equation " << mpc_id << ", " << displacement_components[dim] << " displacement: d"
-          << pbc_dofs[0] << " - d" << pbc_dofs[1] << " - d" << pbc_dofs[2] << " + d" << pbc_dofs[3]
-          << " = 0" << Core::IO::endl;
+          << "  Equation " << equation_id << ", " << displacement_components[dim]
+          << " displacement: d" << pbc_dofs[0] << " - d" << pbc_dofs[1] << " - d" << pbc_dofs[2]
+          << " + d" << pbc_dofs[3] << " = 0" << Core::IO::endl;
 
       constraint_equations_.emplace_back(
-          std::make_shared<LinearCoupledEquation>(mpc_id++, pbc_dofs, pbc_coefficients));
+          std::make_shared<LinearCoupledEquation>(equation_id++, pbc_dofs, pbc_coefficients));
     }
   }
   Core::IO::cout(Core::IO::debug) << Core::IO::endl;
 
   Core::IO::cout(Core::IO::verbose)
       << "Displacement components per relation: " << num_dim << Core::IO::endl;
-  Core::IO::cout(Core::IO::standard)
-      << "Periodic boundary conditions initialized: "
-      << std::accumulate(num_constraints_per_rank.begin(), num_constraints_per_rank.end(), 0)
-      << " scalar constraint equations" << Core::IO::endl
-      << Core::IO::endl;
+  Core::IO::cout(Core::IO::standard) << "Periodic boundary conditions initialized: "
+                                     << std::accumulate(num_constraint_equations_per_rank.begin(),
+                                            num_constraint_equations_per_rank.end(), 0)
+                                     << " scalar constraint equations" << Core::IO::endl
+                                     << Core::IO::endl;
 }
 /*----------------------------------------------------------------------------*
  *----------------------------------------------------------------------------*/
